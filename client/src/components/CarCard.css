@@ -1,0 +1,301 @@
+.car-card {
+  border-radius: 22px;
+
+  overflow: hidden;
+
+  background: rgba(255, 255, 255, 0.045);
+
+  transition:
+    transform 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.car-card:hover {
+  transform: translateY(-7px);
+
+  box-shadow:
+    var(--shadow-lg),
+    var(--glow-purple);
+}
+
+/* =========================
+   IMAGE
+========================= */
+
+.car-card-image {
+  position: relative;
+
+  height: 220px;
+
+  margin: 10px;
+
+  overflow: hidden;
+
+  border-radius: 17px;
+
+  border: 1px solid var(--border-glass);
+
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(139, 92, 246, 0.15),
+      transparent 60%
+    ),
+    rgba(255, 255, 255, 0.025);
+}
+
+.car-card-image img {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+
+  transition: transform 0.5s ease;
+}
+
+.car-card:hover .car-card-image img {
+  transform: scale(1.05);
+}
+
+.car-image-placeholder {
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  color: var(--text-muted);
+}
+
+.car-image-placeholder span {
+  font-size: 82px;
+
+  filter:
+    drop-shadow(0 15px 25px rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 20px rgba(139, 92, 246, 0.15));
+}
+
+.car-image-placeholder small {
+  font-size: 11px;
+}
+
+/* =========================
+   AVAILABILITY
+========================= */
+
+.car-availability {
+  position: absolute;
+
+  top: 12px;
+  right: 12px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 6px;
+
+  padding: 7px 10px;
+
+  border-radius: 999px;
+
+  color: #86efac;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  background: rgba(5, 15, 10, 0.72);
+
+  border: 1px solid rgba(34, 197, 94, 0.2);
+
+  backdrop-filter: blur(10px);
+}
+
+.car-availability span {
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+
+  background: #22c55e;
+
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.75);
+}
+
+/* =========================
+   CONTENT
+========================= */
+
+.car-card-content {
+  padding: 10px 18px 18px;
+}
+
+.car-card-title {
+  display: flex;
+
+  justify-content: space-between;
+  align-items: flex-start;
+
+  gap: 15px;
+}
+
+.car-brand {
+  color: #a78bfa;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.car-card-title h3 {
+  margin-top: 4px;
+
+  font-size: 19px;
+
+  letter-spacing: -0.3px;
+}
+
+.car-price {
+  display: flex;
+
+  align-items: baseline;
+
+  gap: 3px;
+
+  white-space: nowrap;
+}
+
+.car-price strong {
+  font-size: 18px;
+}
+
+.car-price span {
+  color: var(--text-muted);
+
+  font-size: 10px;
+}
+
+/* =========================
+   SPECS
+========================= */
+
+.car-specs {
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 7px;
+
+  margin-top: 17px;
+
+  padding-top: 15px;
+
+  border-top: 1px solid var(--border-glass);
+}
+
+.car-specs span {
+  padding: 6px 8px;
+
+  border-radius: 8px;
+
+  color: var(--text-muted);
+
+  font-size: 10px;
+
+  background: rgba(255, 255, 255, 0.035);
+
+  border: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+/* =========================
+   ACTIONS
+========================= */
+
+.car-card-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  margin-top: 17px;
+}
+
+.car-details-btn {
+  flex: 1;
+
+  padding: 10px;
+
+  text-align: center;
+
+  color: var(--text-secondary);
+
+  font-size: 11px;
+  font-weight: 600;
+
+  text-decoration: none;
+
+  border: 1px solid var(--border-glass);
+
+  border-radius: 9px;
+
+  background: rgba(255, 255, 255, 0.025);
+
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.car-details-btn:hover {
+  color: #ffffff;
+
+  background: rgba(255, 255, 255, 0.07);
+
+  border-color: var(--border-glass-strong);
+}
+
+.car-book-btn {
+  flex: 1;
+
+  padding: 10px;
+
+  text-align: center;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  text-decoration: none;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 500px) {
+  .car-card-image {
+    height: 200px;
+  }
+
+  .car-card-content {
+    padding: 8px 14px 15px;
+  }
+
+  .car-card-title {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .car-price {
+    align-self: flex-start;
+  }
+}

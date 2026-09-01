@@ -1,0 +1,582 @@
+.cars-page {
+  position: relative;
+
+  width: 100%;
+
+  overflow: hidden;
+}
+
+/* =========================
+   HERO
+========================= */
+
+.cars-hero {
+  position: relative;
+
+  width: min(1200px, 100%);
+
+  min-height: 430px;
+
+  margin: 0 auto;
+
+  padding: 110px 24px 70px;
+
+  display: flex;
+  align-items: center;
+}
+
+.cars-hero-content {
+  position: relative;
+
+  z-index: 2;
+
+  max-width: 780px;
+}
+
+.cars-eyebrow {
+  display: inline-block;
+
+  color: #a78bfa;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 1.4px;
+}
+
+.cars-hero h1 {
+  margin-top: 14px;
+
+  font-size: clamp(42px, 6vw, 70px);
+
+  line-height: 1;
+
+  letter-spacing: -2.8px;
+}
+
+.cars-hero h1 span {
+  display: block;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff,
+      #a78bfa 50%,
+      #38bdf8
+    );
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
+  -webkit-text-fill-color: transparent;
+}
+
+.cars-hero-content > p {
+  max-width: 620px;
+
+  margin-top: 20px;
+
+  font-size: 16px;
+
+  line-height: 1.8;
+}
+
+.cars-hero-stats {
+  display: flex;
+  align-items: center;
+
+  margin-top: 34px;
+}
+
+.cars-hero-stats > div:not(.cars-stat-divider) {
+  display: flex;
+  flex-direction: column;
+
+  gap: 4px;
+}
+
+.cars-hero-stats strong {
+  font-size: 15px;
+}
+
+.cars-hero-stats span {
+  color: var(--text-muted);
+
+  font-size: 11px;
+}
+
+.cars-stat-divider {
+  width: 1px;
+  height: 32px;
+
+  margin: 0 22px;
+
+  background: var(--border-glass);
+}
+
+.cars-hero-glow {
+  position: absolute;
+
+  width: 330px;
+  height: 330px;
+
+  border-radius: 50%;
+
+  filter: blur(100px);
+
+  pointer-events: none;
+}
+
+.cars-hero-glow-purple {
+  top: 40px;
+  left: -130px;
+
+  background: rgba(139, 92, 246, 0.14);
+}
+
+.cars-hero-glow-blue {
+  right: -130px;
+  bottom: -100px;
+
+  background: rgba(56, 189, 248, 0.09);
+}
+
+/* =========================
+   CONTROLS
+========================= */
+
+.cars-controls {
+  padding-top: 0;
+}
+
+.cars-search-bar {
+  display: flex;
+
+  align-items: center;
+
+  gap: 14px;
+
+  padding: 15px;
+
+  border-radius: 20px;
+}
+
+.cars-search-input-wrapper {
+  position: relative;
+
+  flex: 1;
+}
+
+.search-icon {
+  position: absolute;
+
+  left: 14px;
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  z-index: 2;
+
+  color: var(--text-muted);
+
+  font-size: 18px;
+
+  pointer-events: none;
+}
+
+.cars-search-input-wrapper .glass-input {
+  padding-left: 42px;
+}
+
+.cars-filter-group {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+.cars-select {
+  min-width: 145px;
+
+  padding: 12px 13px;
+
+  color: var(--text-secondary);
+
+  background: rgba(255, 255, 255, 0.045);
+
+  border: 1px solid var(--border-glass);
+
+  border-radius: var(--radius-sm);
+
+  outline: none;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.25s ease,
+    background 0.25s ease;
+}
+
+.cars-select:focus {
+  border-color: rgba(139, 92, 246, 0.55);
+
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.cars-select option {
+  color: #ffffff;
+
+  background: #0a0f1a;
+}
+
+/* =========================
+   LISTING
+========================= */
+
+.cars-listing {
+  position: relative;
+}
+
+.cars-listing-header {
+  display: flex;
+
+  align-items: flex-end;
+  justify-content: space-between;
+
+  gap: 20px;
+
+  margin-bottom: 32px;
+}
+
+.cars-listing-label {
+  display: block;
+
+  color: #a78bfa;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 1px;
+}
+
+.cars-listing-header h2 {
+  margin-top: 7px;
+
+  font-size: clamp(28px, 4vw, 42px);
+
+  letter-spacing: -1px;
+}
+
+.cars-count {
+  padding: 8px 11px;
+
+  color: var(--text-muted);
+
+  font-size: 11px;
+
+  border: 1px solid var(--border-glass);
+
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.cars-grid {
+  display: grid;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  gap: 20px;
+}
+
+/* =========================
+   RENTAL INFO
+========================= */
+
+.cars-rental-info {
+  padding-top: 35px;
+}
+
+.rental-info-card {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 40px;
+
+  padding: 30px;
+
+  border-radius: 22px;
+}
+
+.rental-info-content {
+  max-width: 590px;
+}
+
+.rental-info-content > span {
+  color: #a78bfa;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 1px;
+}
+
+.rental-info-content h2 {
+  margin-top: 8px;
+
+  font-size: 29px;
+
+  letter-spacing: -0.7px;
+}
+
+.rental-info-content p {
+  margin-top: 10px;
+
+  font-size: 12px;
+}
+
+.rental-info-items {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+}
+
+.rental-info-item {
+  min-width: 120px;
+
+  padding: 15px;
+
+  text-align: center;
+
+  border: 1px solid var(--border-glass);
+
+  border-radius: 13px;
+
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.rental-info-item strong {
+  display: block;
+
+  font-size: 16px;
+}
+
+.rental-info-item span {
+  display: block;
+
+  margin-top: 5px;
+
+  color: var(--text-muted);
+
+  font-size: 9px;
+}
+
+/* =========================
+   CTA
+========================= */
+
+.cars-cta {
+  padding-top: 35px;
+
+  padding-bottom: 85px;
+}
+
+.cars-cta-card {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 30px;
+
+  padding: 32px;
+
+  border-radius: 23px;
+
+  background:
+    radial-gradient(
+      circle at 80% 50%,
+      rgba(139, 92, 246, 0.09),
+      transparent 35%
+    ),
+    rgba(255, 255, 255, 0.04);
+}
+
+.cars-cta-card > div > span {
+  color: #a78bfa;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 1px;
+}
+
+.cars-cta-card h2 {
+  margin-top: 7px;
+
+  font-size: clamp(26px, 4vw, 38px);
+
+  letter-spacing: -1px;
+}
+
+.cars-cta-card p {
+  max-width: 600px;
+
+  margin-top: 8px;
+
+  font-size: 12px;
+}
+
+.cars-cta-card .shiny-button {
+  text-decoration: none;
+
+  white-space: nowrap;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 1050px) {
+  .cars-search-bar {
+    flex-direction: column;
+
+    align-items: stretch;
+  }
+
+  .cars-filter-group {
+    display: grid;
+
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .cars-select {
+    width: 100%;
+  }
+
+  .cars-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .rental-info-card {
+    flex-direction: column;
+
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 700px) {
+  .cars-hero {
+    min-height: 380px;
+
+    padding-top: 80px;
+  }
+
+  .cars-hero h1 {
+    letter-spacing: -2px;
+  }
+
+  .cars-hero-content > p {
+    font-size: 14px;
+  }
+
+  .cars-hero-stats {
+    margin-top: 28px;
+  }
+
+  .cars-stat-divider {
+    margin: 0 13px;
+  }
+
+  .cars-filter-group {
+    grid-template-columns: 1fr;
+  }
+
+  .cars-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cars-listing-header {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+  .rental-info-items {
+    width: 100%;
+
+    display: grid;
+
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .rental-info-item {
+    min-width: 0;
+  }
+
+  .cars-cta-card {
+    flex-direction: column;
+
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .cars-hero {
+    padding: 65px 18px 50px;
+  }
+
+  .cars-hero h1 {
+    font-size: 42px;
+  }
+
+  .cars-hero-stats {
+    width: 100%;
+
+    justify-content: space-between;
+  }
+
+  .cars-hero-stats strong {
+    font-size: 13px;
+  }
+
+  .cars-hero-stats span {
+    font-size: 9px;
+  }
+
+  .cars-stat-divider {
+    margin: 0 8px;
+  }
+
+  .cars-search-bar {
+    padding: 11px;
+  }
+
+  .rental-info-items {
+    grid-template-columns: 1fr;
+  }
+
+  .rental-info-item {
+    text-align: left;
+  }
+
+  .cars-cta {
+    padding-bottom: 60px;
+  }
+}
