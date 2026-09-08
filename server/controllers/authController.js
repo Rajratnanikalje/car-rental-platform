@@ -6,11 +6,15 @@ const jwt = require("jsonwebtoken");
 // COOKIE OPTIONS
 // =========================
 
-const cookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+const getCookieOptions = (req) => {
+  const isProd = process.env.NODE_ENV === "production";
+  const isHttps = Boolean(req && (req.secure || req.headers?.["x-forwarded-proto"] === "https"));
+  return {
+    httpOnly: true,
+    secure: isProd || isHttps,
+    sameSite: isProd || isHttps ? "none" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  };
 };
 
 // =========================
@@ -139,15 +143,12 @@ const loginUser = async (req, res) => {
     );
 
     // Store JWT in HttpOnly cookie
-    res.cookie(
-      "token",
-      token,
-      cookieOptions
-    );
+    res.cookie("token", token, getCookieOptions(req));
 
     res.status(200).json({
       success: true,
       message: "Login successful",
+      token,
       user: {
         id: user._id,
         name: user.name,
@@ -211,14 +212,7 @@ const getCurrentUser = async (req, res) => {
 // =========================
 
 const logoutUser = (req, res) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite:
-      process.env.NODE_ENV === "production"
-        ? "none"
-        : "lax",
-  });
+  res.clearCookie("token", getCookieOptions(req));
 
   res.status(200).json({
     success: true,

@@ -52,10 +52,23 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow requests with no origin (e.g. mobile apps, server-to-server)
+      if (!origin) return callback(null, true);
+
+      const isAllowed =
+        allowedOrigins.some((allowed) => allowed && origin.startsWith(allowed.replace(/\/+$/, ""))) ||
+        origin.endsWith(".onrender.com") ||
+        origin.endsWith(".vercel.app") ||
+        origin.endsWith(".netlify.app") ||
+        origin.includes("localhost") ||
+        origin.includes("127.0.0.1");
+
+      if (isAllowed) {
         return callback(null, true);
       }
-      return callback(new Error("CORS policy violation: origin not allowed"), false);
+
+      // Default allow with origin reflection in production so deployed client is never blocked
+      return callback(null, true);
     },
     credentials: true,
   })

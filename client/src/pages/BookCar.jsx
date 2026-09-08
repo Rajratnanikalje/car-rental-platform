@@ -1,9 +1,9 @@
+import { API_URL } from "../config/api";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./BookCar.css";
 
-const API_URL = `${import.meta.env.VITE_API_URL}`;
 
 function BookCar() {
   const { id } = useParams();

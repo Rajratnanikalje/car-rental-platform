@@ -1,10 +1,10 @@
+import { API_URL } from "../config/api";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./Home.css";
 import CarCard from "../components/CarCard";
 import { useCms } from "../hooks/useCms";
 
-const API_URL = `${import.meta.env.VITE_API_URL}`;
 
 function Home() {
   const navigate = useNavigate();

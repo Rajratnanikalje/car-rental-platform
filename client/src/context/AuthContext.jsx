@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 const AuthContext = createContext(null);
 
-const API_URL = `${import.meta.env.VITE_API_URL}`;
+import { API_URL, getAuthHeaders, setAuthToken } from "../config/api";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -31,6 +31,7 @@ export function AuthProvider({ children }) {
     try {
       const response = await fetch(`${API_URL}/auth/profile`, {
         method: "GET",
+        headers: getAuthHeaders(),
         credentials: "include",
       });
 
@@ -61,12 +62,15 @@ export function AuthProvider({ children }) {
   // =========================
   // LOGIN
   // =========================
-  const login = (userData) => {
+  const login = (userData, token) => {
     if (!userData) {
       console.error("Login failed: user data missing.");
       return;
     }
 
+    if (token) {
+      setAuthToken(token);
+    }
     justLoggedIn.current = true;
     setUser(userData);
   };
@@ -86,6 +90,7 @@ export function AuthProvider({ children }) {
     try {
       const response = await fetch(`${API_URL}/auth/logout`, {
         method: "POST",
+        headers: getAuthHeaders(),
         credentials: "include",
       });
 
@@ -95,6 +100,7 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error("Logout Error:", error);
     } finally {
+      setAuthToken(null);
       setUser(null);
     }
   };

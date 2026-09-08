@@ -1,9 +1,9 @@
+import { API_URL } from "../config/api";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import CarCard from "../components/CarCard";
 import "./Cars.css";
 
-const API_URL = `${import.meta.env.VITE_API_URL}`;
 
 function Cars() {
   const [cars, setCars] = useState([]);

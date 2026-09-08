@@ -1,7 +1,7 @@
+import { API_URL } from "../../config/api";
 import { useState, useEffect } from "react";
 import "./AdminPages.css";
 
-const API_URL = `${import.meta.env.VITE_API_URL}`;
 
 export default function AdminSeatRides() {
   const [rides, setRides] = useState([]);

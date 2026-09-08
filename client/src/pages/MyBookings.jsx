@@ -1,8 +1,8 @@
+import { API_URL } from "../config/api";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import "./MyBookings.css";
 
-const API_URL = `${import.meta.env.VITE_API_URL}`;
 
 const formatDate = (value) => {
   const date = new Date(value);

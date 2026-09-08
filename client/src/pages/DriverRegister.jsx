@@ -1,9 +1,9 @@
+import { API_URL } from "../config/api";
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./DriverRegister.css";
 
-const API_URL = `${import.meta.env.VITE_API_URL}`;
 
 function DriverRegister() {
   const navigate = useNavigate();

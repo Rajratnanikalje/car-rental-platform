@@ -1,6 +1,5 @@
+import { API_URL } from "../config/api";
 import { useState, useEffect, useCallback } from "react";
-
-const API_URL = import.meta.env.VITE_API_URL;
 
 // Canonical fallback state matching backend defaults
 export const DEFAULT_CMS_DATA = {

@@ -1,11 +1,10 @@
+import { API_URL } from "../../config/api";
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { DEFAULT_CMS_DATA } from "../../hooks/useCms";
 import AdminImageUpload from "../../components/admin/AdminImageUpload";
 import "./AdminPages.css";
 import "./AdminCms.css";
-
-const API_URL = import.meta.env.VITE_API_URL;
 
 const TABS = [
   { id: "hero", label: "Hero Section", icon: "🚀" },

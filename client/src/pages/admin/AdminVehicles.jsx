@@ -1,8 +1,8 @@
+import { API_URL } from "../../config/api";
 import { useState, useEffect } from "react";
 import AdminImageUpload from "../../components/admin/AdminImageUpload";
 import "./AdminPages.css";
 
-const API_URL = `${import.meta.env.VITE_API_URL}`;
 
 export default function AdminVehicles() {
   const [vehicles, setVehicles] = useState([]);

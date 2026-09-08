@@ -1,9 +1,9 @@
+import { API_URL } from "../config/api";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./DriverDashboard.css";
 
-const API_URL = `${import.meta.env.VITE_API_URL}`;
 
 function DriverDashboard() {
   const { user, isLoggedIn, loading: authLoading } = useAuth();
