@@ -58,13 +58,14 @@ export default function PaymentGateway() {
         }
       );
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Payment failed");
+        throw new Error(data.message || "Unable to select cash payment");
       }
 
-      setSuccess("Cash payment confirmed successfully.");
-      setTimeout(() => navigate("/my-bookings"), 2000);
+      setSuccess("Cash on delivery selected! Please pay ₹" + booking.totalAmount + " directly to your assigned driver upon trip completion.");
+      setTimeout(() => navigate("/my-bookings"), 2500);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -103,15 +104,19 @@ export default function PaymentGateway() {
         }
       );
 
+      const orderData = await orderResponse.json();
+
       if (!orderResponse.ok) {
-        throw new Error("Failed to create payment order");
+        throw new Error(orderData?.message || "Online payment is currently unavailable. Please choose Cash payment.");
       }
 
-      const orderData = await orderResponse.json();
+      if (!orderData.keyId) {
+        throw new Error("Online payment gateway key is not configured. Please choose Cash payment.");
+      }
 
       // Razorpay options
       const options = {
-        key: "rzp_live_your_key", // Replace with actual Razorpay key
+        key: orderData.keyId,
         amount: booking.totalAmount * 100, // Amount in paise
         currency: "INR",
         name: "RideOn",

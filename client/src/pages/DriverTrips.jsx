@@ -13,7 +13,6 @@ export default function DriverTrips() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedBooking, setSelectedBooking] = useState(null);
-  const [showOtpModal, setShowOtpModal] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
 
@@ -26,6 +25,25 @@ export default function DriverTrips() {
   const [endPhoto, setEndPhoto] = useState("");
   const [endLocation, setEndLocation] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Fetch trips
+  const fetchTrips = async () => {
+    try {
+      setTimeout(() => setLoading(true), 0);
+      const response = await fetch(`${API_URL}/trips/driver/my-trips`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch assigned trips");
+
+      const data = await response.json();
+      setTrips(Array.isArray(data.bookings) ? data.bookings : []);
+    } catch (err) {
+      setError(err.message || "Unable to load assigned trips");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Auth guard
   useEffect(() => {
@@ -41,30 +59,11 @@ export default function DriverTrips() {
     }
   }, [authLoading, user, navigate]);
 
-  // Fetch trips
+  // Fetch trips on mount
   useEffect(() => {
-    fetchTrips();
+    const timer = window.setTimeout(fetchTrips, 0);
+    return () => window.clearTimeout(timer);
   }, []);
-
-  const fetchTrips = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${API_URL}/bookings/my`, {
-        credentials: "include",
-      });
-
-      if (!response.ok) throw new Error("Failed to fetch trips");
-
-      const data = await response.json();
-      // Filter only driver's trips
-      const driverTrips = data.bookings.filter((b) => b.driver && b.trip);
-      setTrips(driverTrips);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Mark arrival
   const handleMarkArrival = async (bookingId) => {
@@ -181,6 +180,39 @@ export default function DriverTrips() {
     }
   };
 
+  // Confirm cash collection for completed cash trips
+  const handleConfirmCashCollection = async (bookingId) => {
+    if (!window.confirm("Confirm that you have collected the cash from the customer for this trip?")) {
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `${API_URL}/finance/bookings/${bookingId}/cash-collection`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to confirm cash collection");
+      }
+
+      alert("✅ " + (data.message || "Cash collection confirmed!"));
+      fetchTrips();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Convert image to base64
   const handleImageUpload = (file, setter) => {
     const reader = new FileReader();
@@ -241,6 +273,14 @@ export default function DriverTrips() {
               </div>
 
               <div className="trip-details">
+                {trip.user && (
+                  <div className="detail-row">
+                    <span className="label">👤 Customer:</span>
+                    <span>
+                      {trip.user.name || "Customer"}{trip.user.phone ? ` (${trip.user.phone})` : ""}
+                    </span>
+                  </div>
+                )}
                 <div className="detail-row">
                   <span className="label">🚌 Type:</span>
                   <span>{trip.bookingType || "Private Car"}</span>
@@ -254,11 +294,41 @@ export default function DriverTrips() {
                   <span className="amount">₹{trip.totalAmount?.toFixed(2)}</span>
                 </div>
                 <div className="detail-row">
-                  <span className="label">👤 Payment:</span>
+                  <span className="label">💳 Payment:</span>
                   <span className="payment-method">
-                    {trip.paymentMethod?.toUpperCase() || "CASH"}
+                    {trip.paymentMethod?.toUpperCase() || "CASH"} (
+                    <span
+                      style={{
+                        color: trip.paymentStatus === "paid" ? "#4ade80" : "#fbbf24",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {trip.paymentStatus === "paid" ? "PAID" : "PENDING"}
+                    </span>
+                    )
                   </span>
                 </div>
+                {trip.trip?.startEvidence?.odometer !== undefined && trip.trip?.startEvidence?.odometer !== null && (
+                  <div className="detail-row">
+                    <span className="label">🚀 Start Odo:</span>
+                    <span>{trip.trip.startEvidence.odometer} KM</span>
+                  </div>
+                )}
+                {trip.trip?.endEvidence?.odometer !== undefined && trip.trip?.endEvidence?.odometer !== null && (
+                  <div className="detail-row">
+                    <span className="label">🏁 End Odo:</span>
+                    <span>{trip.trip.endEvidence.odometer} KM</span>
+                  </div>
+                )}
+                {trip.trip?.actualDistanceKm !== undefined && trip.trip?.actualDistanceKm !== null && trip.trip?.status === "trip_completed" && (
+                  <div className="detail-row">
+                    <span className="label">📏 Distance:</span>
+                    <span>
+                      {trip.trip.actualDistanceKm} KM
+                      {trip.extraKm > 0 ? ` (+${trip.extraKm} KM extra)` : ""}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="trip-actions">
@@ -300,9 +370,21 @@ export default function DriverTrips() {
                 )}
 
                 {trip.trip?.status === "trip_completed" && (
-                  <button className="btn btn-completed" disabled>
-                    ✓ Completed
-                  </button>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+                    <button className="btn btn-completed" disabled>
+                      ✓ Completed
+                    </button>
+                    {trip.paymentMethod === "cash" && trip.paymentStatus !== "paid" && (
+                      <button
+                        className="btn btn-success"
+                        style={{ background: "#10b981", borderColor: "#059669" }}
+                        onClick={() => handleConfirmCashCollection(trip._id)}
+                        disabled={submitting}
+                      >
+                        💵 Confirm Cash Received (₹{trip.totalAmount?.toFixed(2)})
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

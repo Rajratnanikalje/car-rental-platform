@@ -227,6 +227,56 @@ const logoutUser = (req, res) => {
 };
 
 // =========================
+// UPDATE USER PROFILE
+// =========================
+
+const updateUserProfile = async (req, res) => {
+  try {
+    const { name, phone } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Name is required",
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    user.name = name.trim();
+    if (phone !== undefined) {
+      user.phone = phone.trim();
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("Update User Profile Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// =========================
 // EXPORT
 // =========================
 
@@ -234,5 +284,6 @@ module.exports = {
   registerUser,
   loginUser,
   getCurrentUser,
+  updateUserProfile,
   logoutUser,
 };

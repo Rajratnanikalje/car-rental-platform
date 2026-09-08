@@ -2,8 +2,12 @@ const mongoose = require("mongoose");
 const SystemSetting = require("../models/SystemSetting");
 const DriverLedger = require("../models/DriverLedger");
 const Payment = require("../models/Payment");
+const Booking = require("../models/Booking");
 const Trip = require("../models/Trip");
 const AuditLog = require("../models/AuditLog");
+const User = require("../models/User");
+const Driver = require("../models/Driver");
+const Car = require("../models/Car");
 
 const getActiveSettings = async () => {
   const settings = await SystemSetting.findOne({ key: "platform", isActive: true });
@@ -28,7 +32,22 @@ const createFinancialRecords = async ({ booking, driver }) => {
   if (existing) return existing;
   const amounts = calculateLedgerAmounts(booking.totalAmount, settings);
   const isCash = booking.paymentMethod === "cash";
-  await Payment.create({ booking: booking._id, amount: booking.totalAmount, method: booking.paymentMethod });
+
+  // Check if Payment already exists for this booking to prevent duplicate key error
+  let payment = await Payment.findOne({ booking: booking._id });
+  if (!payment) {
+    payment = await Payment.create({
+      booking: booking._id,
+      amount: booking.totalAmount,
+      method: booking.paymentMethod,
+      status: isCash ? "pending" : "received",
+      receivedAt: isCash ? null : new Date(),
+    });
+  } else if (payment.amount !== booking.totalAmount) {
+    payment.amount = booking.totalAmount;
+    await payment.save();
+  }
+
   return DriverLedger.create({
     booking: booking._id,
     driver,
@@ -90,9 +109,16 @@ const confirmCashCollection = async (req, res) => {
     ledger.cashConfirmedAt = new Date();
     await ledger.save();
     const payment = await Payment.findOne({ booking: req.params.bookingId });
-    payment.status = "received";
-    payment.receivedAt = ledger.cashConfirmedAt;
-    await payment.save();
+    if (payment) {
+      payment.status = "received";
+      payment.receivedAt = ledger.cashConfirmedAt;
+      await payment.save();
+    }
+    const booking = await Booking.findById(req.params.bookingId);
+    if (booking) {
+      booking.paymentStatus = "paid";
+      await booking.save();
+    }
     await AuditLog.create({
       actor: req.user.id,
       action: "CASH_COLLECTION_CONFIRMED",
@@ -100,8 +126,8 @@ const confirmCashCollection = async (req, res) => {
       entityId: ledger._id,
       booking: ledger.booking,
       driver: req.driver._id,
-      oldValue: { amountCollected: 0, cashConfirmedAt: null, paymentStatus: "pending" },
-      newValue: { amountCollected: ledger.amountCollected, cashConfirmedAt: ledger.cashConfirmedAt, paymentStatus: payment.status },
+      oldValue: { amountCollected: 0, cashConfirmedAt: null, paymentStatus: "pending", bookingPaymentStatus: "pending" },
+      newValue: { amountCollected: ledger.amountCollected, cashConfirmedAt: ledger.cashConfirmedAt, paymentStatus: payment ? payment.status : "received", bookingPaymentStatus: "paid" },
     });
     return res.json({ success: true, message: "Cash collection recorded. RideOn commission remains payable.", ledger });
   } catch (error) {
@@ -156,4 +182,78 @@ const updateSettlementStatus = async (req, res) => {
   }
 };
 
-module.exports = { getActiveSettings, createFinancialRecords, getSettings, updateSettings, confirmCashCollection, getMyDriverLedger, getLedgers, updateSettlementStatus };
+const getPlatformStats = async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const totalDrivers = await Driver.countDocuments({ status: "approved" });
+    const totalVehicles = await Car.countDocuments();
+    const totalBookings = await Booking.countDocuments();
+    const activeTrips = await Trip.countDocuments({
+      status: { $in: ["driver_assigned", "driver_arrived", "trip_started", "trip_in_progress"] },
+    });
+    const completedTrips = await Trip.countDocuments({ status: "trip_completed" });
+    const cancelledTrips = await Trip.countDocuments({ status: "cancelled" });
+    const pendingSettlements = await DriverLedger.countDocuments({ settlementStatus: "pending" });
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const todayPayments = await Payment.aggregate([
+      {
+        $match: {
+          status: "received",
+          receivedAt: { $gte: startOfToday },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    const todayRevenue = todayPayments.length > 0 ? todayPayments[0].total : 0;
+
+    const commissionAggr = await DriverLedger.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalCommission: { $sum: "$amountPayableToRideOn" },
+        },
+      },
+    ]);
+    const totalCommission = commissionAggr.length > 0 ? commissionAggr[0].totalCommission : 0;
+
+    return res.json({
+      success: true,
+      stats: {
+        totalUsers,
+        totalDrivers,
+        totalVehicles,
+        totalBookings,
+        activeTrips,
+        completedTrips,
+        cancelledTrips,
+        pendingSettlements,
+        todayRevenue,
+        totalCommission,
+      },
+    });
+  } catch (error) {
+    console.error("Get platform stats error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+module.exports = {
+  getActiveSettings,
+  createFinancialRecords,
+  getSettings,
+  updateSettings,
+  confirmCashCollection,
+  getMyDriverLedger,
+  getLedgers,
+  updateSettlementStatus,
+  getPlatformStats,
+};

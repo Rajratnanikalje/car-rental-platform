@@ -13,6 +13,8 @@ function CarCard({ car }) {
     fuelType = "Petrol",
   } = car;
 
+  const isAvailable = car.available !== false;
+
   return (
     <article className="car-card glass-card">
       <div className="car-card-image">
@@ -25,9 +27,9 @@ function CarCard({ car }) {
           </div>
         )}
 
-        <div className="car-availability">
+        <div className={`car-availability ${isAvailable ? "available" : "unavailable"}`}>
           <span />
-          Available
+          {isAvailable ? "Available" : "Unavailable"}
         </div>
       </div>
 
@@ -55,9 +57,20 @@ function CarCard({ car }) {
             View Details
           </Link>
 
-          <Link to={`/book/${_id}`} className="shiny-button car-book-btn">
-            Book Now
-          </Link>
+          {isAvailable ? (
+            <Link to={`/book/${_id}`} className="shiny-button car-book-btn">
+              Book Now
+            </Link>
+          ) : (
+            <button
+              type="button"
+              className="car-book-btn disabled"
+              disabled
+              title="This vehicle is currently unavailable"
+            >
+              Unavailable
+            </button>
+          )}
         </div>
       </div>
     </article>

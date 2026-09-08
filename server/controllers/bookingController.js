@@ -179,6 +179,8 @@ const getMyBookings = async (req, res) => {
       user: req.user.id,
     })
       .populate("car")
+      .populate({ path: "trip", select: "status arrivedAt actualDistanceKm" })
+      .populate({ path: "driver", select: "mobile status" })
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -392,6 +394,36 @@ const cancelBooking = async (req, res) => {
 };
 
 // =========================
+// GET ALL BOOKINGS (ADMIN)
+// =========================
+const getAllBookings = async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.status) {
+      filter.bookingStatus = req.query.status;
+    }
+    const bookings = await Booking.find(filter)
+      .populate("user", "name email phone")
+      .populate("car", "name brand category image pricePerDay")
+      .populate({ path: "driver", populate: { path: "user", select: "name phone" } })
+      .populate("trip")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: bookings.length,
+      bookings,
+    });
+  } catch (error) {
+    console.error("Get All Bookings Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// =========================
 // EXPORT
 // =========================
 module.exports = {
@@ -400,4 +432,5 @@ module.exports = {
   getBookingById,
   updateBookingKm,
   cancelBooking,
+  getAllBookings,
 };

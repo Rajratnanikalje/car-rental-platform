@@ -6,12 +6,17 @@ const {
   getBookingById,
   updateBookingKm,
   cancelBooking,
+  getAllBookings,
 } = require("../controllers/bookingController");
 
-const { protect } = require("../middleware/authMiddleware");
+const { protect, adminOnly } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
+// =========================
+// GET ALL BOOKINGS (ADMIN)
+// =========================
+router.get("/", protect, adminOnly, getAllBookings);
 
 // =========================
 // CREATE BOOKING

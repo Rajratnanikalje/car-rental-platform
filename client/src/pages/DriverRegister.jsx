@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./DriverRegister.css";
@@ -7,7 +7,7 @@ const API_URL = `${import.meta.env.VITE_API_URL}`;
 
 function DriverRegister() {
   const navigate = useNavigate();
-  const { user, isLoggedIn, loading: authLoading } = useAuth();
+  const { isLoggedIn, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -33,9 +33,11 @@ function DriverRegister() {
   });
 
   // Redirect if not logged in
-  if (!authLoading && !isLoggedIn) {
-    return navigate("/login");
-  }
+  useEffect(() => {
+    if (!authLoading && !isLoggedIn) {
+      navigate("/login");
+    }
+  }, [authLoading, isLoggedIn, navigate]);
 
   // =========================
   // HANDLE CHANGE

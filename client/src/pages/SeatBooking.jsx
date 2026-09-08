@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./SeatBooking.css";
 
@@ -7,32 +7,29 @@ const API_URL = `${import.meta.env.VITE_API_URL}`;
 
 function SeatBooking() {
   const navigate = useNavigate();
-  const { isLoggedIn, loading: authLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { user, isLoggedIn } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [rides, setRides] = useState([]);
 
   const [filters, setFilters] = useState({
-    pickupPoint: "",
-    destination: "",
+    pickupPoint: searchParams.get("pickupPoint") || "",
+    destination: searchParams.get("destination") || "",
   });
 
   const [selectedRide, setSelectedRide] = useState(null);
-  const [bookingForm, setBookingForm] = useState({
-    seats: 1,
-    pickupLocation: "",
-    destination: "",
-    paymentMethod: "cash",
-  });
+  const [selectedSeats, setSelectedSeats] = useState(1);
+  const [passengerName, setPassengerName] = useState(user?.name || "");
+  const [passengerPhone, setPassengerPhone] = useState(user?.phone || "");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
 
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState("");
+  const [bookingSuccess, setBookingSuccess] = useState(null);
 
-  // =========================
-  // FETCH RIDES
-  // =========================
+  // Fetch Rides
   useEffect(() => {
     const fetchRides = async () => {
       try {
@@ -40,27 +37,15 @@ function SeatBooking() {
         setError("");
 
         let url = `${API_URL}/seat-rides`;
-
-        // Add filters
         const params = new URLSearchParams();
-        if (filters.pickupPoint.trim()) {
-          params.append("pickupPoint", filters.pickupPoint.trim());
-        }
-        if (filters.destination.trim()) {
-          params.append("destination", filters.destination.trim());
-        }
-
-        if (params.toString()) {
-          url += "?" + params.toString();
-        }
+        if (filters.pickupPoint.trim()) params.append("pickupPoint", filters.pickupPoint.trim());
+        if (filters.destination.trim()) params.append("destination", filters.destination.trim());
+        if (params.toString()) url += "?" + params.toString();
 
         const response = await fetch(url);
         const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error(data?.message || "Failed to load rides");
-        }
-
+        if (!response.ok) throw new Error(data?.message || "Failed to load rides");
         setRides(Array.isArray(data?.rides) ? data.rides : []);
       } catch (err) {
         console.error("Fetch Rides Error:", err);
@@ -73,239 +58,164 @@ function SeatBooking() {
     fetchRides();
   }, [filters]);
 
-  // =========================
-  // FILTER CHANGE
-  // =========================
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+  const activeRide = rides.find((r) => r._id === selectedRide);
 
-  // =========================
-  // BOOKING FORM CHANGE
-  // =========================
-  const handleBookingChange = (e) => {
-    const { name, value } = e.target;
-    setBookingForm((prev) => ({
-      ...prev,
-      [name]: name === "seats" ? Number(value) : value,
-    }));
-  };
-
-  // =========================
-  // HANDLE BOOKING
-  // =========================
-  const handleBooking = async (ride) => {
+  const handleBooking = async (e) => {
+    e.preventDefault();
     if (!isLoggedIn) {
-      return navigate("/login");
+      navigate("/login");
+      return;
     }
+
+    if (!activeRide) return;
 
     try {
       setBookingLoading(true);
       setBookingError("");
 
-      if (
-        !bookingForm.pickupLocation.trim() ||
-        !bookingForm.destination.trim() ||
-        bookingForm.seats < 1
-      ) {
-        setBookingError("Please provide all required booking details");
-        return;
-      }
-
       const payload = {
-        seats: bookingForm.seats,
-        pickupLocation: bookingForm.pickupLocation.trim(),
-        destination: bookingForm.destination.trim(),
-        paymentMethod: bookingForm.paymentMethod,
+        seats: selectedSeats,
+        pickupLocation: activeRide.pickupPoint,
+        destination: activeRide.destination,
+        paymentMethod,
       };
 
-      const response = await fetch(`${API_URL}/seat-rides/${ride._id}/bookings`, {
+      const response = await fetch(`${API_URL}/seat-rides/${activeRide._id}/bookings`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(payload),
       });
 
       const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data?.message || "Booking failed");
+        throw new Error(data?.message || "Failed to confirm seat booking");
       }
 
-      alert("Booking confirmed! Check-in code: " + data.booking?.checkInOtp);
-      setSelectedRide(null);
-      setBookingForm({
-        seats: 1,
-        pickupLocation: "",
-        destination: "",
-        paymentMethod: "cash",
+      setBookingSuccess({
+        booking: data.booking,
+        checkInOtp: data.checkInOtp,
+        ride: activeRide,
       });
 
-      // Refresh rides
+      // Update remaining seats in local list
       setRides((prev) =>
         prev.map((r) =>
-          r._id === ride._id
-            ? { ...r, availableSeats: r.availableSeats - bookingForm.seats }
+          r._id === activeRide._id
+            ? { ...r, availableSeats: Math.max(0, r.availableSeats - selectedSeats) }
             : r
         )
       );
     } catch (err) {
-      setBookingError(err.message || "Failed to book seats");
+      console.error("Booking error:", err);
+      setBookingError(err.message);
     } finally {
       setBookingLoading(false);
     }
   };
 
-  // =========================
-  // LOADING
-  // =========================
-  if (loading) {
-    return (
-      <main className="seat-booking-page">
-        <section className="seat-listing section">
-          <div className="seat-listing-header">
-            <span className="seat-listing-label">Shared Rides</span>
-            <h2>Book a seat on a shared ride</h2>
-          </div>
-
-          <div className="seat-loading">
-            <div className="book-spinner" />
-            <p>Loading available rides...</p>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
   return (
     <main className="seat-booking-page">
-      {/* =========================
-          HERO SECTION
-      ========================== */}
-      <section className="seat-hero">
-        <div className="seat-hero-glow seat-hero-glow-1" />
-        <div className="seat-hero-glow seat-hero-glow-2" />
+      <div className="seat-hero-section">
+        <span className="seat-eyebrow">Smart Intercity Travel</span>
+        <h1>Shared <span>Seat Rides</span></h1>
+        <p>Book single or multiple seats on scheduled verified routes. Save money, travel safely.</p>
+      </div>
 
-        <div className="seat-hero-content">
-          <h1>🚌 Shared Ride Bookings</h1>
-          <p>Travel affordably by sharing rides with others</p>
+      {/* Filter Bar */}
+      <div className="seat-filter-container glass-card">
+        <div className="seat-filter-inputs">
+          <div className="filter-field">
+            <label>Pickup Point</label>
+            <input
+              type="text"
+              placeholder="e.g. Pune"
+              value={filters.pickupPoint}
+              onChange={(e) => setFilters((p) => ({ ...p, pickupPoint: e.target.value }))}
+            />
+          </div>
+          <div className="filter-field">
+            <label>Destination</label>
+            <input
+              type="text"
+              placeholder="e.g. Mumbai"
+              value={filters.destination}
+              onChange={(e) => setFilters((p) => ({ ...p, destination: e.target.value }))}
+            />
+          </div>
+          <button
+            type="button"
+            className="filter-reset-btn"
+            onClick={() => setFilters({ pickupPoint: "", destination: "" })}
+          >
+            Clear Filters
+          </button>
         </div>
-      </section>
+      </div>
 
-      {/* =========================
-          FILTERS
-      ========================== */}
-      <section className="seat-filters section">
-        <div className="filters-container">
-          <input
-            type="text"
-            name="pickupPoint"
-            placeholder="Pickup location"
-            value={filters.pickupPoint}
-            onChange={handleFilterChange}
-            className="filter-input"
-          />
-
-          <input
-            type="text"
-            name="destination"
-            placeholder="Destination"
-            value={filters.destination}
-            onChange={handleFilterChange}
-            className="filter-input"
-          />
-        </div>
-      </section>
-
-      {/* =========================
-          ERROR
-      ========================== */}
-      {error && (
-        <section className="section">
-          <div className="alert alert-error">{error}</div>
-        </section>
-      )}
-
-      {/* =========================
-          RIDES LISTING
-      ========================== */}
-      <section className="seat-listing section">
-        <div className="seat-listing-header">
-          <span className="seat-listing-label">Available Rides</span>
-          <h2>Found {rides.length} ride(s)</h2>
-        </div>
-
-        {rides.length === 0 ? (
-          <div className="no-rides">
-            <p>No rides available for your search</p>
+      {/* Rides Listing */}
+      <div className="seat-rides-list-container">
+        {loading ? (
+          <div className="seat-loading-state">
+            <div className="seat-spinner" />
+            <p>Loading available scheduled rides...</p>
+          </div>
+        ) : error ? (
+          <div className="seat-error-box glass-card">{error}</div>
+        ) : rides.length === 0 ? (
+          <div className="seat-empty-box glass-card">
+            <h3>No Scheduled Rides Found</h3>
+            <p>Try searching for a different pickup point or destination.</p>
           </div>
         ) : (
-          <div className="rides-grid">
+          <div className="seat-cards-grid">
             {rides.map((ride) => (
-              <div key={ride._id} className="ride-card glass-card">
-                <div className="ride-header">
-                  <h3>
-                    {ride.pickupPoint} → {ride.destination}
-                  </h3>
-                  <span
-                    className={`availability ${
-                      ride.availableSeats === 0 ? "full" : "available"
-                    }`}
-                  >
-                    {ride.availableSeats === 0
-                      ? "Full"
-                      : `${ride.availableSeats} seats`}
+              <div key={ride._id} className="seat-card-item glass-card">
+                <div className="seat-card-header">
+                  <div className="route-title">
+                    <h3>{ride.pickupPoint?.split(",")[0]} ➔ {ride.destination?.split(",")[0]}</h3>
+                    <span className="route-full-path">
+                      {ride.pickupPoint} to {ride.destination}
+                    </span>
+                  </div>
+                  <span className={`seat-avail-tag ${ride.availableSeats === 0 ? "full" : ""}`}>
+                    {ride.availableSeats === 0 ? "Full" : `${ride.availableSeats} seats left`}
                   </span>
                 </div>
 
-                <div className="ride-details">
-                  <div className="detail">
-                    <span className="detail-label">Vehicle</span>
-                    <span className="detail-value">
-                      {ride.car?.brand} {ride.car?.model}
-                    </span>
+                <div className="seat-card-details">
+                  <div className="detail-row">
+                    <span>📅 Departure:</span>
+                    <strong>
+                      {new Date(ride.departureAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} |{" "}
+                      {new Date(ride.departureAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </strong>
                   </div>
-
-                  <div className="detail">
-                    <span className="detail-label">Departure</span>
-                    <span className="detail-value">
-                      {new Date(ride.departureAt).toLocaleDateString()} at{" "}
-                      {new Date(ride.departureAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
+                  <div className="detail-row">
+                    <span>🚗 Vehicle:</span>
+                    <strong>{ride.car?.brand} {ride.car?.model} ({ride.totalSeats} Seats)</strong>
                   </div>
-
-                  <div className="detail">
-                    <span className="detail-label">Price per Seat</span>
-                    <span className="detail-value">₹{ride.pricePerSeat}</span>
-                  </div>
-
-                  <div className="detail">
-                    <span className="detail-label">Total Capacity</span>
-                    <span className="detail-value">{ride.totalSeats} passengers</span>
+                  <div className="detail-row">
+                    <span>💰 Price per seat:</span>
+                    <strong className="seat-price-highlight">₹{ride.pricePerSeat}</strong>
                   </div>
                 </div>
 
-                {ride.availableSeats > 0 && (
+                {ride.availableSeats > 0 ? (
                   <button
-                    onClick={() => setSelectedRide(ride._id)}
-                    className="shiny-button"
-                    style={{ width: "100%" }}
+                    type="button"
+                    className="shiny-button seat-select-action"
+                    onClick={() => {
+                      setSelectedRide(ride._id);
+                      setSelectedSeats(1);
+                      setBookingError("");
+                      setBookingSuccess(null);
+                    }}
                   >
-                    Book Now
+                    Select & Book →
                   </button>
-                )}
-
-                {ride.availableSeats === 0 && (
-                  <button className="shiny-button" disabled style={{ width: "100%" }}>
+                ) : (
+                  <button type="button" className="seat-select-action disabled" disabled>
                     Ride Full
                   </button>
                 )}
@@ -313,124 +223,141 @@ function SeatBooking() {
             ))}
           </div>
         )}
-      </section>
+      </div>
 
-      {/* =========================
-          BOOKING MODAL
-      ========================== */}
-      {selectedRide && (
-        <div className="booking-modal-overlay" onClick={() => setSelectedRide(null)}>
-          <div
-            className="booking-modal glass-card"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h2>Book Your Seats</h2>
-              <button
-                className="modal-close"
-                onClick={() => setSelectedRide(null)}
-              >
-                ✕
-              </button>
+      {/* ==========================================
+          BOOKING MODAL (REFERENCE IMAGE 1 TILE 4)
+      =========================================== */}
+      {selectedRide && activeRide && (
+        <div className="seat-modal-backdrop" onClick={() => setSelectedRide(null)}>
+          <div className="seat-booking-modal glass-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <div>
+                <h2>{activeRide.pickupPoint?.split(",")[0]} ➔ {activeRide.destination?.split(",")[0]}</h2>
+                <span className="modal-subhead">
+                  {new Date(activeRide.departureAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} |{" "}
+                  {new Date(activeRide.departureAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </div>
+              <button className="modal-close-btn" onClick={() => setSelectedRide(null)}>✕</button>
             </div>
 
-            {bookingError && <div className="alert alert-error">{bookingError}</div>}
+            {bookingSuccess ? (
+              <div className="booking-success-view">
+                <div className="success-badge-icon">✓</div>
+                <h3>Seat Booking Confirmed!</h3>
+                <p>Your seats are securely reserved. Present your OTP to the driver at boarding.</p>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const ride = rides.find((r) => r._id === selectedRide);
-                if (ride) {
-                  handleBooking(ride);
-                }
-              }}
-            >
-              <div className="form-group">
-                <label htmlFor="seats">Number of Seats *</label>
-                <select
-                  id="seats"
-                  name="seats"
-                  value={bookingForm.seats}
-                  onChange={handleBookingChange}
-                  required
+                <div className="check-in-otp-display">
+                  <span className="otp-label">BOARDING CHECK-IN OTP</span>
+                  <strong className="otp-digits">{bookingSuccess.checkInOtp}</strong>
+                  <small>Share this code with your driver when boarding</small>
+                </div>
+
+                <button
+                  type="button"
+                  className="shiny-button modal-done-btn"
+                  onClick={() => {
+                    setSelectedRide(null);
+                    setBookingSuccess(null);
+                  }}
                 >
-                  {Array.from(
-                    {
-                      length: rides.find((r) => r._id === selectedRide)
-                        ?.availableSeats || 1,
-                    },
-                    (_, i) => i + 1
-                  ).map((num) => (
-                    <option key={num} value={num}>
-                      {num} seat{num > 1 ? "s" : ""}
-                    </option>
-                  ))}
-                </select>
+                  Close & View Rides
+                </button>
               </div>
-
-              <div className="form-group">
-                <label htmlFor="pickupLocation">Pickup Location *</label>
-                <input
-                  type="text"
-                  id="pickupLocation"
-                  name="pickupLocation"
-                  placeholder="Where will you board?"
-                  value={bookingForm.pickupLocation}
-                  onChange={handleBookingChange}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="destination">Destination *</label>
-                <input
-                  type="text"
-                  id="destination"
-                  name="destination"
-                  placeholder="Where will you get down?"
-                  value={bookingForm.destination}
-                  onChange={handleBookingChange}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="paymentMethod">Payment Method *</label>
-                <select
-                  id="paymentMethod"
-                  name="paymentMethod"
-                  value={bookingForm.paymentMethod}
-                  onChange={handleBookingChange}
-                  required
-                >
-                  <option value="cash">Cash (Pay Driver)</option>
-                  <option value="online">Online Payment</option>
-                </select>
-              </div>
-
-              {(() => {
-                const ride = rides.find((r) => r._id === selectedRide);
-                const totalFare =
-                  (ride?.pricePerSeat || 0) * bookingForm.seats;
-                return (
-                  <div className="fare-summary">
-                    <div className="fare-line">
-                      <span>₹{ride?.pricePerSeat} × {bookingForm.seats} seats</span>
-                      <span>₹{totalFare}</span>
-                    </div>
+            ) : (
+              <form onSubmit={handleBooking} className="seat-booking-form">
+                {/* Vehicle info card */}
+                <div className="modal-vehicle-banner">
+                  <div>
+                    <strong>{activeRide.car?.brand} {activeRide.car?.model}</strong>
+                    <span>{activeRide.totalSeats} Seater AC Vehicle</span>
                   </div>
-                );
-              })()}
+                  <div className="price-badge-wrap">
+                    <span className="seat-price-val">₹{activeRide.pricePerSeat}</span>
+                    <small>/ seat</small>
+                  </div>
+                </div>
 
-              <button
-                type="submit"
-                className="shiny-button"
-                disabled={bookingLoading}
-                style={{ width: "100%" }}
-              >
-                {bookingLoading ? "Booking..." : "Confirm Booking"}
-              </button>
-            </form>
+                {/* SELECT SEATS (INTERACTIVE BUTTONS 1-6) */}
+                <div className="seat-selector-group">
+                  <label>Select Seats (Max available: {activeRide.availableSeats})</label>
+                  <div className="seat-number-buttons">
+                    {Array.from({ length: Math.min(activeRide.availableSeats, 6) }, (_, i) => i + 1).map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        className={`seat-num-btn ${selectedSeats === num ? "selected" : ""}`}
+                        onClick={() => setSelectedSeats(num)}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* PASSENGER DETAILS */}
+                <div className="passenger-inputs-section">
+                  <label>Passenger Details</label>
+                  <div className="passenger-row">
+                    <input
+                      type="text"
+                      placeholder="Passenger Name"
+                      value={passengerName}
+                      onChange={(e) => setPassengerName(e.target.value)}
+                      required
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Phone Number"
+                      value={passengerPhone}
+                      onChange={(e) => setPassengerPhone(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* PAYMENT METHOD */}
+                <div className="seat-payment-method">
+                  <label>Payment Method</label>
+                  <div className="payment-options-row">
+                    <label className={`pay-choice ${paymentMethod === "cash" ? "active" : ""}`}>
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="cash"
+                        checked={paymentMethod === "cash"}
+                        onChange={() => setPaymentMethod("cash")}
+                      />
+                      💵 Cash to Driver
+                    </label>
+                    <label className={`pay-choice ${paymentMethod === "online" ? "active" : ""}`}>
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="online"
+                        checked={paymentMethod === "online"}
+                        onChange={() => setPaymentMethod("online")}
+                      />
+                      💳 Online Payment
+                    </label>
+                  </div>
+                </div>
+
+                {/* TOTAL FARE & SUBMIT */}
+                <div className="modal-fare-footer">
+                  <div className="fare-summary-left">
+                    <span>Total Fare</span>
+                    <strong>₹{selectedSeats * activeRide.pricePerSeat}</strong>
+                  </div>
+                  <button type="submit" className="shiny-button seat-confirm-btn" disabled={bookingLoading}>
+                    {bookingLoading ? "Confirming..." : "Book Seats →"}
+                  </button>
+                </div>
+
+                {bookingError && <div className="modal-error-alert">{bookingError}</div>}
+              </form>
+            )}
           </div>
         </div>
       )}

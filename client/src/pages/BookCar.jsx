@@ -217,6 +217,11 @@ function BookCar() {
       return;
     }
 
+    if (car && car.available === false) {
+      setError("This car is currently not available for booking.");
+      return;
+    }
+
     // =========================
     // VALIDATION
     // =========================
@@ -418,7 +423,42 @@ function BookCar() {
         {/* =========================
             HEADER
         ========================== */}
-        <div className="book-header">
+                {/* ==========================================
+            6-STEP STEPPER (REFERENCE IMAGE 1 TILE 3)
+        =========================================== */}
+        <div className="booking-stepper glass-card">
+          <div className="stepper-step completed">
+            <span className="step-circle">✓</span>
+            <span>Search</span>
+          </div>
+          <span className="stepper-arrow">→</span>
+          <div className="stepper-step completed">
+            <span className="step-circle">✓</span>
+            <span>Select</span>
+          </div>
+          <span className="stepper-arrow">→</span>
+          <div className="stepper-step completed">
+            <span className="step-circle">✓</span>
+            <span>Details</span>
+          </div>
+          <span className="stepper-arrow">→</span>
+          <div className="stepper-step completed">
+            <span className="step-circle">✓</span>
+            <span>Login</span>
+          </div>
+          <span className="stepper-arrow">→</span>
+          <div className="stepper-step active">
+            <span className="step-circle">5</span>
+            <span>Confirm</span>
+          </div>
+          <span className="stepper-arrow">→</span>
+          <div className="stepper-step">
+            <span className="step-circle">6</span>
+            <span>Payment</span>
+          </div>
+        </div>
+
+<div className="book-header">
           <div>
             <span className="book-eyebrow">
               Reserve your ride

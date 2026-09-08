@@ -1,8 +1,9 @@
 const express = require("express");
-const { getSettings, updateSettings, confirmCashCollection, getMyDriverLedger, getLedgers, updateSettlementStatus } = require("../controllers/financeController");
+const { getSettings, updateSettings, confirmCashCollection, getMyDriverLedger, getLedgers, updateSettlementStatus, getPlatformStats } = require("../controllers/financeController");
 const { protect, adminOnly, approvedDriverOnly } = require("../middleware/authMiddleware");
 
 const router = express.Router();
+router.get("/stats", protect, adminOnly, getPlatformStats);
 router.get("/settings", protect, adminOnly, getSettings);
 router.put("/settings", protect, adminOnly, updateSettings);
 router.get("/ledgers", protect, adminOnly, getLedgers);

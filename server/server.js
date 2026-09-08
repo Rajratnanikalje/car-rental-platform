@@ -18,6 +18,7 @@ const tripRoutes = require("./routes/tripRoutes");
 const financeRoutes = require("./routes/financeRoutes");
 const seatRideRoutes = require("./routes/seatRideRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const cmsRoutes = require("./routes/cmsRoutes");
 
 const app = express();
 
@@ -41,9 +42,21 @@ app.use(helmet());
 // CORS
 // =========================
 
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL|| "http://localhost:5173",
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("CORS policy violation: origin not allowed"), false);
+    },
     credentials: true,
   })
 );
@@ -52,8 +65,8 @@ app.use(
 // BODY PARSER
 // =========================
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // =========================
 // COOKIE PARSER
@@ -67,7 +80,7 @@ app.use(cookieParser());
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: process.env.NODE_ENV === "production" ? 1000 : 5000,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -101,6 +114,8 @@ app.use("/api/finance", financeRoutes);
 app.use("/api/seat-rides", seatRideRoutes);
 
 app.use("/api/payments", paymentRoutes);
+
+app.use("/api/cms", cmsRoutes);
 
 // =========================
 // HEALTH CHECK

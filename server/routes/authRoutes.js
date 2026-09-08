@@ -4,6 +4,7 @@ const {
   registerUser,
   loginUser,
   getCurrentUser,
+  updateUserProfile,
   logoutUser,
 } = require("../controllers/authController");
 
@@ -27,6 +28,12 @@ router.get(
   "/profile",
   protect,
   getCurrentUser
+);
+
+router.put(
+  "/profile",
+  protect,
+  updateUserProfile
 );
 
 // =========================

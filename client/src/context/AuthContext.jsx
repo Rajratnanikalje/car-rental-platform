@@ -72,6 +72,14 @@ export function AuthProvider({ children }) {
   };
 
   // =========================
+  // UPDATE USER
+  // =========================
+  const updateUser = (userData) => {
+    if (!userData) return;
+    setUser((prev) => (prev ? { ...prev, ...userData } : userData));
+  };
+
+  // =========================
   // LOGOUT
   // =========================
   const logout = async () => {
@@ -103,6 +111,7 @@ export function AuthProvider({ children }) {
         isLoggedIn,
         loading,
         login,
+        updateUser,
         logout,
       }}
     >

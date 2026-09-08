@@ -129,6 +129,20 @@
   box-shadow: 0 0 10px rgba(34, 197, 94, 0.75);
 }
 
+.car-availability.unavailable {
+  color: #fca5a5;
+
+  background: rgba(25, 5, 5, 0.72);
+
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.car-availability.unavailable span {
+  background: #ef4444;
+
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.75);
+}
+
 /* =========================
    CONTENT
 ========================= */
@@ -275,6 +289,20 @@
   font-weight: 700;
 
   text-decoration: none;
+}
+
+.car-book-btn.disabled {
+  background: rgba(255, 255, 255, 0.05);
+
+  color: var(--text-muted);
+
+  border: 1px solid var(--border-glass);
+
+  border-radius: 9px;
+
+  cursor: not-allowed;
+
+  opacity: 0.65;
 }
 
 /* =========================

@@ -1,0 +1,759 @@
+.customer-portal-root {
+  display: flex;
+  min-height: 100vh;
+  background: #090d16;
+  color: #ffffff;
+}
+
+/* SIDEBAR (IMAGE 2 MIDDLE) */
+.customer-sidebar {
+  width: 240px;
+  background: rgba(15, 23, 42, 0.95);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 16px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.customer-brand-top {
+  margin-bottom: 32px;
+  padding-left: 8px;
+}
+
+.sidebar-logo-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: #ffffff;
+  font-size: 20px;
+}
+
+.brand-r {
+  width: 32px;
+  height: 32px;
+  background: #facc15;
+  color: #0f172a;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+}
+
+.sidebar-logo-link strong span {
+  color: #facc15;
+}
+
+.customer-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.customer-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.customer-nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.customer-nav-item.active {
+  background: rgba(250, 204, 21, 0.12);
+  color: #facc15;
+  border-left: 3px solid #facc15;
+}
+
+.customer-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.customer-logout-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* MAIN VIEWPORT */
+.customer-main-viewport {
+  flex: 1;
+  padding: 36px 40px;
+  overflow-y: auto;
+  max-width: 1280px;
+}
+
+.customer-viewport-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 30px;
+}
+
+.eyebrow-dashboard {
+  font-size: 13px;
+  font-weight: 700;
+  color: #facc15;
+  text-transform: uppercase;
+}
+
+.customer-viewport-header h1 {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 4px 0 6px;
+}
+
+.customer-viewport-header p {
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.book-new-ride-btn {
+  padding: 10px 20px;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+/* 4 STATS CARDS */
+.customer-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin-bottom: 30px;
+}
+
+.customer-stat-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-num {
+  font-size: 28px;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.stat-num.highlight-gold {
+  color: #facc15;
+}
+
+.stat-title {
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+/* TRIP IN PROGRESS */
+.trip-in-progress-card {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 18px;
+  padding: 24px;
+  margin-bottom: 30px;
+}
+
+.trip-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.card-badge-pill.live {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.trip-status-tag {
+  font-size: 12px;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.trip-flow-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding: 0 20px;
+}
+
+.flow-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.flow-step.done, .flow-step.active {
+  color: #4ade80;
+}
+
+.flow-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.flow-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 12px;
+}
+
+.tracking-route-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(30, 41, 59, 0.5);
+  padding: 14px 18px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.point-dot.pickup {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.point-dot.dropoff {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #facc15;
+}
+
+.point-info small {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.customer-otp-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 20px;
+}
+
+.otp-box-left strong {
+  display: block;
+  font-size: 15px;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.otp-box-left p {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.live-otp-display {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.live-otp-code {
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: #facc15;
+}
+
+.otp-valid-badge {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.driver-mini-profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(15, 23, 42, 0.8);
+  padding: 12px 18px;
+  border-radius: 12px;
+}
+
+.driver-avatar-circle {
+  font-size: 28px;
+}
+
+.driver-names strong {
+  display: block;
+  font-size: 14px;
+}
+
+.driver-names span {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.driver-call-btn {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+  padding: 6px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* DASHBOARD 2-COLUMN LAYOUT */
+.dashboard-columns-split {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 24px;
+}
+
+.column-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.column-header-row h3 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.view-link-text {
+  background: transparent;
+  border: none;
+  color: #facc15;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.trips-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.upcoming-trip-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.upcoming-trip-card:hover, .upcoming-trip-card.selected {
+  border-color: rgba(250, 204, 21, 0.4);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.trip-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.trip-card-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.trip-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 10px;
+}
+
+.trip-fare {
+  font-size: 17px;
+  font-weight: 800;
+  color: #facc15;
+}
+
+.details-hint {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* BOOKING DETAILS CARD (IMAGE 2 MIDDLE) */
+.booking-details-card {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.booking-car-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.details-car-thumb {
+  width: 70px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.details-car-header h4 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.details-car-header span {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.details-route-box {
+  background: rgba(30, 41, 59, 0.4);
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #cbd5e1;
+  margin-bottom: 18px;
+}
+
+.details-fare-breakdown {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 14px;
+  margin-bottom: 18px;
+}
+
+.details-fare-breakdown h5, .details-payment-section h5 {
+  font-size: 14px;
+  color: #facc15;
+  margin-bottom: 10px;
+}
+
+.fare-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.fare-line.total {
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  padding-top: 8px;
+  margin-top: 8px;
+  color: #ffffff;
+  font-size: 15px;
+}
+
+.total-figure {
+  color: #facc15;
+  font-size: 18px;
+}
+
+.payment-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #cbd5e1;
+  margin-bottom: 20px;
+}
+
+.status-pill {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.status-pill.confirmed {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.status-pill.pending {
+  background: rgba(234, 179, 8, 0.15);
+  color: #facc15;
+}
+
+.status-pill.completed {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.status-pill.cancelled {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.payment-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.payment-pill.paid, .payment-pill.received {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.details-actions-row {
+  display: flex;
+  gap: 12px;
+}
+
+.invoice-download-btn {
+  flex: 1;
+  background: #facc15;
+  color: #0f172a;
+  border: none;
+  font-weight: 700;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.support-contact-btn {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  font-weight: 600;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* BOOKINGS FULL LIST */
+.bookings-filter-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.filter-tab-pill {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.filter-tab-pill.active {
+  background: #facc15;
+  color: #0f172a;
+  border-color: #facc15;
+}
+
+.bookings-full-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.booking-list-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.booking-card-main h4 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.booking-card-main p {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.booking-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.booking-fare {
+  font-size: 18px;
+  color: #facc15;
+}
+
+.invoice-btn-sm {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* PAYMENTS TABLE */
+.payments-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+.payments-table th, .payments-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 14px;
+}
+
+.payments-table th {
+  color: #94a3b8;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+/* PROFILE GRID */
+.profile-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.profile-field label {
+  display: block;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.profile-field input {
+  width: 100%;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+/* SUPPORT CHANNELS */
+.support-channels-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.support-box {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 20px;
+  text-align: center;
+}
+
+.support-icon {
+  font-size: 32px;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.support-box strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.support-box span {
+  font-size: 13px;
+  color: #facc15;
+}
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .customer-portal-root {
+    flex-direction: column;
+  }
+  .customer-sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+  }
+  .customer-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .dashboard-columns-split {
+    grid-template-columns: 1fr;
+  }
+  .support-channels-row {
+    grid-template-columns: 1fr;
+  }
+}

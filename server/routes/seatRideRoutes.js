@@ -1,8 +1,9 @@
 const express = require("express");
 const controller = require("../controllers/seatRideController");
-const { protect, approvedDriverOnly } = require("../middleware/authMiddleware");
+const { protect, adminOnly, approvedDriverOnly } = require("../middleware/authMiddleware");
 
 const router = express.Router();
+router.get("/admin/all", protect, adminOnly, controller.getAdminScheduledRides);
 router.get("/", controller.getRides);
 router.get("/my-bookings", protect, controller.getMySeatBookings);
 router.get("/:id", controller.getRideById);

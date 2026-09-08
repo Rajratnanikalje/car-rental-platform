@@ -124,6 +124,16 @@ function Login() {
         );
       }
 
+      // Admin accounts must use the dedicated /admin/login portal
+      if (data.user.role === "admin") {
+        await fetch(`${API_URL}/auth/logout`, {
+          method: "POST",
+          credentials: "include",
+        });
+        setError("Admin accounts cannot log in through the customer website. Please access the secure Admin Portal at /admin/login.");
+        return;
+      }
+
       // =========================
       // UPDATE AUTH CONTEXT
       // =========================

@@ -1,0 +1,231 @@
+.admin-img-upload-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.admin-img-upload-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-img-upload-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.admin-img-toggle-url {
+  background: none;
+  border: none;
+  color: #818cf8;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.admin-img-toggle-url:hover {
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+/* Dropzone */
+.admin-img-dropzone {
+  border: 2px dashed rgba(99, 102, 241, 0.4);
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 12px;
+  padding: 24px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  min-height: 150px;
+}
+
+.admin-img-dropzone:hover,
+.admin-img-dropzone.drag-over {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.08);
+  transform: translateY(-1px);
+}
+
+.admin-img-dropzone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-img-dropzone-icon {
+  font-size: 32px;
+}
+
+.admin-img-dropzone-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-img-dropzone-text strong {
+  font-size: 14px;
+  color: #f1f5f9;
+}
+
+.admin-img-dropzone-text span {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.admin-img-picker-btn {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px !important;
+  padding: 8px 18px !important;
+  border-radius: 8px !important;
+}
+
+.admin-img-dropzone-hint {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+/* Preview Card */
+.admin-img-preview-card {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-img-preview-box {
+  position: relative;
+  width: 100%;
+  background: #020617;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.admin-img-preview-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.admin-img-preview-actions {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(30, 41, 59, 0.5);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-img-badge-ready {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #34d399;
+}
+
+.admin-img-badge-ready .dot {
+  font-size: 14px;
+  color: #10b981;
+}
+
+.admin-img-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Loading & Spinner */
+.admin-img-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.admin-img-processing-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #f8fafc;
+  font-size: 13px;
+}
+
+.admin-img-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: adminImgSpin 0.7s linear infinite;
+}
+
+@keyframes adminImgSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.admin-img-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.admin-img-url-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.admin-img-url-input {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  width: 100%;
+}
+
+.admin-img-url-input:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.admin-img-url-tip {
+  font-size: 11px;
+  color: #64748b;
+}
+

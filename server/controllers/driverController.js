@@ -22,11 +22,6 @@ const safeDriver = (driver) => {
 
 const applyAsDriver = async (req, res) => {
   try {
-    const existing = await Driver.findOne({ user: req.user.id });
-    if (existing) {
-      return res.status(409).json({ success: false, message: "A driver application already exists for this account" });
-    }
-
     const { mobile, profilePhoto, address, emergencyContact, drivingLicence, identity, payoutAccount } = req.body;
     if (!mobile || !address || !emergencyContact?.name || !emergencyContact?.mobile || !drivingLicence?.number || !drivingLicence?.expiryDate || !drivingLicence?.documentUrl || !identity?.documentType || !identity?.documentNumber || !identity?.documentUrl || !payoutAccount?.accountHolderName || !payoutAccount?.bankName || !payoutAccount?.accountNumber || !payoutAccount?.ifsc) {
       return res.status(400).json({ success: false, message: "Please provide all required driver verification and payout details" });
@@ -37,16 +32,37 @@ const applyAsDriver = async (req, res) => {
       return res.status(400).json({ success: false, message: "A valid future driving licence expiry date is required" });
     }
 
-    const driver = await Driver.create({
-      user: req.user.id,
-      mobile,
-      profilePhoto,
-      address,
-      emergencyContact,
-      drivingLicence: { ...drivingLicence, expiryDate: licenceExpiry },
-      identity,
-      payoutAccount,
-    });
+    let driver;
+    const existing = await Driver.findOne({ user: req.user.id });
+
+    if (existing) {
+      if (existing.status === "approved") {
+        return res.status(409).json({ success: false, message: "Your driver account is already approved." });
+      }
+
+      existing.mobile = mobile;
+      existing.profilePhoto = profilePhoto || existing.profilePhoto;
+      existing.address = address;
+      existing.emergencyContact = emergencyContact;
+      existing.drivingLicence = { ...drivingLicence, expiryDate: licenceExpiry };
+      existing.identity = identity;
+      existing.payoutAccount = payoutAccount;
+      existing.status = "pending";
+      await existing.save();
+      driver = existing;
+    } else {
+      driver = await Driver.create({
+        user: req.user.id,
+        mobile,
+        profilePhoto,
+        address,
+        emergencyContact,
+        drivingLicence: { ...drivingLicence, expiryDate: licenceExpiry },
+        identity,
+        payoutAccount,
+        status: "pending",
+      });
+    }
 
     return res.status(201).json({ success: true, message: "Driver application submitted for review", driver: safeDriver(driver) });
   } catch (error) {
@@ -66,11 +82,49 @@ const getMyDriverProfile = async (req, res) => {
   }
 };
 
+const adminDriverView = (driver) => {
+  const data = driver.toObject ? driver.toObject() : driver;
+  const accountNumber = data.payoutAccount?.accountNumber || "";
+  return {
+    ...data,
+    drivingLicence: data.drivingLicence
+      ? {
+          number: data.drivingLicence.number,
+          expiryDate: data.drivingLicence.expiryDate,
+          documentUrl: data.drivingLicence.documentUrl,
+        }
+      : undefined,
+    identity: data.identity
+      ? {
+          documentType: data.identity.documentType,
+          documentNumber: data.identity.documentNumber,
+          documentUrl: data.identity.documentUrl,
+        }
+      : undefined,
+    payoutAccount: data.payoutAccount
+      ? {
+          bankName: data.payoutAccount.bankName,
+          accountHolderName: data.payoutAccount.accountHolderName,
+          accountNumberMasked: accountNumber ? `XXXX${accountNumber.slice(-4)}` : undefined,
+          ifsc: data.payoutAccount.ifsc,
+          upiId: data.payoutAccount.upiId,
+          isVerified: data.payoutAccount.isVerified,
+          isPrimary: data.payoutAccount.isPrimary,
+        }
+      : undefined,
+  };
+};
+
 const getDrivers = async (req, res) => {
   try {
-    const filter = req.query.status ? { status: req.query.status } : {};
-    const drivers = await Driver.find(filter).populate("user", "name email phone").sort({ createdAt: -1 });
-    return res.json({ success: true, count: drivers.length, drivers: drivers.map(safeDriver) });
+    const filter = req.query.status && req.query.status !== "all" ? { status: req.query.status } : {};
+    const drivers = await Driver.find(filter)
+      .select(
+        "+drivingLicence.number +drivingLicence.documentUrl +identity.documentNumber +identity.documentUrl +payoutAccount.accountHolderName +payoutAccount.accountNumber +payoutAccount.ifsc +payoutAccount.upiId"
+      )
+      .populate("user", "name email phone")
+      .sort({ createdAt: -1 });
+    return res.json({ success: true, count: drivers.length, drivers: drivers.map(adminDriverView) });
   } catch (error) {
     console.error("Get drivers error:", error);
     return res.status(500).json({ success: false, message: "Server error" });
@@ -85,7 +139,9 @@ const updateDriverStatus = async (req, res) => {
     if (!allowedStatuses.includes(status)) return res.status(400).json({ success: false, message: "Invalid driver status" });
     if (["rejected", "suspended", "blocked"].includes(status) && !reviewNote.trim()) return res.status(400).json({ success: false, message: "A review note is required for this status" });
 
-    const driver = await Driver.findById(req.params.id);
+    const driver = await Driver.findById(req.params.id).select(
+      "+drivingLicence.number +drivingLicence.documentUrl +identity.documentNumber +identity.documentUrl +payoutAccount.accountHolderName +payoutAccount.accountNumber +payoutAccount.ifsc +payoutAccount.upiId"
+    );
     if (!driver) return res.status(404).json({ success: false, message: "Driver not found" });
 
     driver.status = status;
@@ -95,7 +151,7 @@ const updateDriverStatus = async (req, res) => {
     await driver.save();
 
     if (status === "approved") await User.findByIdAndUpdate(driver.user, { role: "driver" });
-    return res.json({ success: true, message: "Driver status updated", driver: safeDriver(driver) });
+    return res.json({ success: true, message: "Driver status updated", driver: adminDriverView(driver) });
   } catch (error) {
     console.error("Update driver status error:", error);
     return res.status(500).json({ success: false, message: "Server error" });

@@ -15,6 +15,21 @@ function MyBookings() {
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [cancellingId, setCancellingId] = useState("");
+  const [otpModal, setOtpModal] = useState({ show: false, otp: "", expiresAt: "", error: "", loading: false, bookingId: null });
+
+  const fetchStartOtp = async (bookingId) => {
+    setOtpModal({ show: true, otp: "", expiresAt: "", error: "", loading: true, bookingId });
+    try {
+      const response = await fetch(`${API_URL}/trips/${bookingId}/start-code`, { credentials: "include" });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || "Driver has not arrived yet. OTP is generated once the driver marks arrival.");
+      }
+      setOtpModal({ show: true, otp: data.otp, expiresAt: data.expiresAt, error: "", loading: false, bookingId });
+    } catch (err) {
+      setOtpModal({ show: true, otp: "", expiresAt: "", error: err.message, loading: false, bookingId });
+    }
+  };
 
   const fetchBookings = async () => {
     try {
@@ -90,13 +105,100 @@ function MyBookings() {
               <div className="booking-status-block"><span className="booking-status-label">Status</span><span className={`booking-status booking-status-${status}`}><span />{status}</span></div>
               <div className="booking-detail-block"><span className="booking-detail-label">Rental Dates</span><strong>{formatDate(booking.pickupDate)}</strong><span className="booking-arrow">↓</span><strong>{formatDate(booking.returnDate)}</strong></div>
               <div className="booking-detail-block"><span className="booking-detail-label">Pickup Location</span><strong>📍 {booking.pickupLocation}</strong></div>
+              {Boolean(booking.trip?.actualDistanceKm || booking.totalKm) && (
+                <div className="booking-detail-block"><span className="booking-detail-label">Distance Driven</span><strong>{booking.trip?.actualDistanceKm || booking.totalKm} KM</strong></div>
+              )}
               <div className="booking-amount-block"><span className="booking-detail-label">Total Amount</span><strong>₹{Number(booking.totalAmount || 0).toLocaleString("en-IN")}</strong><span>Final booking total</span></div>
-              <div className="booking-actions">{car._id && <Link to={`/cars/${car._id}`} className="booking-view-btn">View Car</Link>}{booking.paymentStatus === "pending" && <Link to={`/payment/${booking._id}`} className="booking-payment-btn">💳 Pay Now</Link>}{booking.bookingStatus === "confirmed" && booking.trip && <Link to="/driver-trips" className="booking-trip-btn">📍 Track Trip</Link>}{["pending", "confirmed"].includes(status) && <button type="button" className="booking-cancel-btn" disabled={cancellingId === booking._id} onClick={() => cancelBooking(booking._id)}>{cancellingId === booking._id ? "Cancelling..." : "Cancel"}</button>}</div>
+              <div className="booking-actions">
+                {car._id && <Link to={`/cars/${car._id}`} className="booking-view-btn">View Car</Link>}
+                {booking.paymentStatus === "pending" && <Link to={`/payment/${booking._id}`} className="booking-payment-btn">💳 Pay Now</Link>}
+                {booking.trip && booking.trip.status !== "trip_completed" && (
+                  <button type="button" className="booking-trip-btn" onClick={() => fetchStartOtp(booking._id)}>
+                    {booking.trip.status === "driver_arrived" ? "🔑 View Start OTP" : "🔑 Start Code / OTP"}
+                  </button>
+                )}
+                {["pending", "confirmed"].includes(status) && (
+                  <button type="button" className="booking-cancel-btn" disabled={cancellingId === booking._id} onClick={() => cancelBooking(booking._id)}>
+                    {cancellingId === booking._id ? "Cancelling..." : "Cancel"}
+                  </button>
+                )}
+              </div>
             </article>;
           })}</div>}
           {!loading && !error && filteredBookings.length === 0 && <div className="bookings-empty glass-card"><div className="empty-icon">🚘</div><h2>No bookings yet</h2><p>You have no bookings matching this filter. Find a car and start planning your next journey.</p><Link to="/cars" className="shiny-button">Explore Cars →</Link></div>}
         </section>
         <section className="booking-account-info"><div className="booking-account-info-card glass-card"><div className="account-info-icon">ℹ️</div><div><h3>Need to manage your account?</h3><p>Update your personal information from your profile or browse available vehicles for a new booking.</p></div><Link to="/profile" className="account-info-link">Go to Profile →</Link></div></section>
+        {otpModal.show && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(0,0,0,0.75)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9999,
+              padding: "16px",
+            }}
+          >
+            <div
+              className="glass-card"
+              style={{
+                maxWidth: "420px",
+                width: "100%",
+                padding: "24px",
+                textAlign: "center",
+                background: "rgba(20, 24, 39, 0.95)",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+                borderRadius: "16px",
+              }}
+            >
+              <h3 style={{ marginBottom: "12px", fontSize: "1.25rem" }}>🔑 Trip Verification Code</h3>
+              {otpModal.loading && <p>Retrieving start code from server...</p>}
+              {otpModal.error && (
+                <div style={{ color: "#ef4444", marginBottom: "16px", fontSize: "0.95rem", background: "rgba(239, 68, 68, 0.1)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.25)" }}>
+                  ℹ️ {otpModal.error}
+                </div>
+              )}
+              {otpModal.otp && (
+                <div style={{ margin: "20px 0" }}>
+                  <span style={{ fontSize: "0.85rem", opacity: 0.8 }}>Share this code with your driver to start the trip:</span>
+                  <div
+                    style={{
+                      fontSize: "2.2rem",
+                      fontWeight: 700,
+                      letterSpacing: "6px",
+                      color: "#38bdf8",
+                      margin: "12px 0",
+                      background: "rgba(56, 189, 248, 0.1)",
+                      padding: "10px",
+                      borderRadius: "8px",
+                      border: "1px dashed rgba(56, 189, 248, 0.4)",
+                    }}
+                  >
+                    {otpModal.otp}
+                  </div>
+                  {otpModal.expiresAt && (
+                    <small style={{ color: "#94a3b8", display: "block" }}>
+                      Valid for 10 minutes (expires: {new Date(otpModal.expiresAt).toLocaleTimeString()})
+                    </small>
+                  )}
+                </div>
+              )}
+              <button
+                type="button"
+                className="shiny-button"
+                style={{ width: "100%", marginTop: "12px" }}
+                onClick={() => setOtpModal({ show: false, otp: "", expiresAt: "", error: "", loading: false, bookingId: null })}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

@@ -1,7 +1,68 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import "./Profile.css";
 
+const API_URL = `${import.meta.env.VITE_API_URL}`;
+
 function Profile() {
+  const { user, updateUser } = useAuth();
+
+  const [name, setName] = useState(user?.name || "");
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState({ type: "", text: "" });
+
+  useEffect(() => {
+    if (!user) return;
+    const timer = window.setTimeout(() => {
+      setName(user.name || "");
+      setPhone(user.phone || "");
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [user]);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setMessage({ type: "", text: "" });
+
+    try {
+      const response = await fetch(`${API_URL}/auth/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ name, phone }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data?.message || "Failed to update profile");
+      }
+
+      updateUser(data.user);
+      setMessage({ type: "success", text: "Profile updated successfully!" });
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err.message || "Failed to update profile",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const initial = (user?.name?.trim()?.[0] || "U").toUpperCase();
+  const roleLabel =
+    user?.role === "driver"
+      ? "Driver Partner"
+      : user?.role === "admin"
+        ? "Platform Administrator"
+        : "Customer Account";
+
   return (
     <main className="profile-page">
       <div className="profile-glow profile-glow-purple" />
@@ -39,12 +100,12 @@ function Profile() {
           ========================== */}
           <aside className="profile-sidebar glass-card">
             <div className="profile-avatar">
-              <span>R</span>
+              <span>{initial}</span>
             </div>
 
-            <h2>Rajratna Nikalje</h2>
+            <h2>{user?.name || "User"}</h2>
 
-            <p className="profile-role">Customer Account</p>
+            <p className="profile-role">{roleLabel}</p>
 
             <div className="profile-status">
               <span />
@@ -75,6 +136,32 @@ function Profile() {
               MAIN
           ========================== */}
           <div className="profile-main">
+            {message.text && (
+              <div
+                className={`alert ${
+                  message.type === "success" ? "alert-success" : "alert-error"
+                }`}
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  marginBottom: "20px",
+                  textAlign: "center",
+                  background:
+                    message.type === "success"
+                      ? "rgba(34, 197, 94, 0.15)"
+                      : "rgba(239, 68, 68, 0.15)",
+                  border: `1px solid ${
+                    message.type === "success"
+                      ? "rgba(34, 197, 94, 0.3)"
+                      : "rgba(239, 68, 68, 0.3)"
+                  }`,
+                  color: message.type === "success" ? "#dcfce7" : "#fee2e2",
+                }}
+              >
+                {message.text}
+              </div>
+            )}
+
             {/* Personal Information */}
             <section
               id="personal-info"
@@ -89,7 +176,7 @@ function Profile() {
                 <span className="profile-section-number">01</span>
               </div>
 
-              <form className="profile-form">
+              <form className="profile-form" onSubmit={handleSave}>
                 <div className="profile-form-group">
                   <label htmlFor="profile-name">Full name</label>
 
@@ -98,7 +185,9 @@ function Profile() {
                     name="name"
                     type="text"
                     className="glass-input"
-                    defaultValue="Rajratna Nikalje"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
                     autoComplete="name"
                   />
                 </div>
@@ -111,9 +200,14 @@ function Profile() {
                     name="email"
                     type="email"
                     className="glass-input"
-                    defaultValue="you@example.com"
+                    value={user?.email || ""}
+                    disabled
+                    style={{ opacity: 0.7, cursor: "not-allowed" }}
                     autoComplete="email"
                   />
+                  <small style={{ color: "var(--text-muted)", fontSize: "11px", marginTop: "4px" }}>
+                    Email is associated with your account and cannot be changed.
+                  </small>
                 </div>
 
                 <div className="profile-form-group">
@@ -124,32 +218,21 @@ function Profile() {
                     name="phone"
                     type="tel"
                     className="glass-input"
-                    defaultValue=""
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
                     placeholder="Enter mobile number"
                     autoComplete="tel"
                     inputMode="numeric"
                   />
                 </div>
 
-                <div className="profile-form-group">
-                  <label htmlFor="profile-city">City</label>
-
-                  <input
-                    id="profile-city"
-                    name="city"
-                    type="text"
-                    className="glass-input"
-                    placeholder="Enter your city"
-                    autoComplete="address-level2"
-                  />
-                </div>
-
                 <div className="profile-form-actions">
                   <button
-                    type="button"
+                    type="submit"
                     className="shiny-button"
+                    disabled={saving}
                   >
-                    Save Changes
+                    {saving ? "Saving Changes..." : "Save Changes"}
                   </button>
                 </div>
               </form>
@@ -175,7 +258,7 @@ function Profile() {
 
                   <div>
                     <span>Email</span>
-                    <strong>you@example.com</strong>
+                    <strong>{user?.email || "—"}</strong>
                   </div>
                 </div>
 
@@ -184,7 +267,7 @@ function Profile() {
 
                   <div>
                     <span>Mobile</span>
-                    <strong>Not added yet</strong>
+                    <strong>{user?.phone || phone || "Not added yet"}</strong>
                   </div>
                 </div>
               </div>
@@ -204,7 +287,9 @@ function Profile() {
               <div className="account-overview-grid">
                 <div className="overview-item">
                   <span>Account type</span>
-                  <strong>Customer</strong>
+                  <strong style={{ textTransform: "capitalize" }}>
+                    {user?.role || "Customer"}
+                  </strong>
                 </div>
 
                 <div className="overview-item">

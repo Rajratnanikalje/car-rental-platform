@@ -45,7 +45,18 @@ const getCustomerOtp = async (req, res) => {
     if (!isValidId(req.params.bookingId)) return res.status(404).json({ success: false, message: "Booking not found" });
     const booking = await Booking.findOne({ _id: req.params.bookingId, user: req.user.id }).populate("trip");
     if (!booking || !booking.trip) return res.status(404).json({ success: false, message: "Assigned trip not found" });
-    if (booking.trip.status !== "driver_arrived") return res.status(409).json({ success: false, message: "The driver has not marked arrival yet" });
+    if (booking.trip.status === "driver_assigned") {
+      return res.status(409).json({ success: false, message: "Your driver is on the way. The start OTP will unlock once the driver marks arrival at pickup." });
+    }
+    if (booking.trip.status === "trip_started" || booking.trip.status === "trip_in_progress") {
+      return res.status(409).json({ success: false, message: "Trip is already in progress" });
+    }
+    if (booking.trip.status === "trip_completed") {
+      return res.status(409).json({ success: false, message: "Trip has already been completed" });
+    }
+    if (booking.trip.status !== "driver_arrived") {
+      return res.status(409).json({ success: false, message: "Start code is not available for this trip status" });
+    }
 
     // The raw OTP is intentionally never stored. Reissue a fresh code only to the booking owner.
     const otp = makeOtp();
@@ -106,13 +117,19 @@ const completeTrip = async (req, res) => {
     if (trip.status !== "trip_started" && trip.status !== "trip_in_progress") return res.status(409).json({ success: false, message: "Trip must be started before completion" });
     if (!trip.startEvidence) return res.status(409).json({ success: false, message: "Trip cannot complete without start evidence" });
 
+    const endOdometer = Number(odometer);
+    if (endOdometer < trip.startEvidence.odometer) {
+      return res.status(400).json({
+        success: false,
+        message: `End odometer reading (${endOdometer} KM) cannot be less than start odometer reading (${trip.startEvidence.odometer} KM)`,
+      });
+    }
+
     // Do not complete a financial trip until an admin has configured commission rules.
     await getActiveSettings();
 
-    const endOdometer = Number(odometer);
+    const distance = endOdometer - trip.startEvidence.odometer;
     const flags = [];
-    if (endOdometer < trip.startEvidence.odometer) flags.push("ODOMETER_DECREASE");
-    const distance = Math.max(endOdometer - trip.startEvidence.odometer, 0);
     if (distance > 2000) flags.push("UNUSUAL_DISTANCE");
     trip.endEvidence = { odometer: endOdometer, photoUrl: photoUrl.trim(), location: location.trim(), recordedAt: new Date() };
     trip.actualDistanceKm = distance;
@@ -145,4 +162,50 @@ const completeTrip = async (req, res) => {
   }
 };
 
-module.exports = { assignDriver, getCustomerOtp, markArrival, verifyAndStartTrip, completeTrip };
+const getDriverTrips = async (req, res) => {
+  try {
+    const bookings = await Booking.find({ driver: req.driver._id })
+      .populate("car")
+      .populate("trip")
+      .populate("user", "name email phone")
+      .sort({ createdAt: -1 });
+
+    return res.json({ success: true, count: bookings.length, bookings });
+  } catch (error) {
+    console.error("Get driver trips error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+const getAllTrips = async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.status) {
+      filter.status = req.query.status;
+    }
+    if (req.query.fraudReviewStatus) {
+      filter.fraudReviewStatus = req.query.fraudReviewStatus;
+    }
+
+    const trips = await Trip.find(filter)
+      .populate({
+        path: "booking",
+        populate: [
+          { path: "user", select: "name email phone" },
+          { path: "car", select: "name brand category image" },
+        ],
+      })
+      .populate({
+        path: "driver",
+        populate: { path: "user", select: "name email phone" },
+      })
+      .sort({ createdAt: -1 });
+
+    return res.json({ success: true, count: trips.length, trips });
+  } catch (error) {
+    console.error("Get all trips error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+module.exports = { assignDriver, getCustomerOtp, markArrival, verifyAndStartTrip, completeTrip, getDriverTrips, getAllTrips };

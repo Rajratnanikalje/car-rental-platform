@@ -156,4 +156,26 @@ const checkInPassenger = async (req, res) => {
   }
 };
 
-module.exports = { publishRide, getRides, getRideById, createSeatBooking, getMySeatBookings, cancelSeatBooking, getManifest, checkInPassenger };
+const getAdminScheduledRides = async (req, res) => {
+  try {
+    const rides = await ScheduledRide.find()
+      .populate("car", "name brand model seats image")
+      .populate({ path: "driver", populate: { path: "user", select: "name phone email" } })
+      .sort({ departureAt: -1 });
+    return res.json({ success: true, count: rides.length, rides });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+module.exports = {
+  publishRide,
+  getRides,
+  getRideById,
+  createSeatBooking,
+  getMySeatBookings,
+  cancelSeatBooking,
+  getManifest,
+  checkInPassenger,
+  getAdminScheduledRides,
+};

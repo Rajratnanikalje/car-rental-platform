@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("crypto");
 const Booking = require("../models/Booking");
 const Payment = require("../models/Payment");
 const { protect } = require("../middleware/authMiddleware");
@@ -46,9 +47,16 @@ router.post("/create-order", protect, async (req, res) => {
       });
     }
 
-    // In production, create actual Razorpay order
-    // For now, return mock order
-    const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Require actual Razorpay credentials in production
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({
+        success: false,
+        gatewayAvailable: false,
+        message: "Online payment gateway is currently not configured on this server. Please choose Cash on Delivery or contact admin.",
+      });
+    }
+
+    const orderId = `order_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
 
     return res.status(201).json({
       success: true,
@@ -56,6 +64,7 @@ router.post("/create-order", protect, async (req, res) => {
       orderId,
       amount: amount,
       bookingId: bookingId,
+      keyId: process.env.RAZORPAY_KEY_ID,
     });
   } catch (error) {
     console.error("Create order error:", error);
@@ -73,10 +82,30 @@ router.post("/verify-payment", protect, async (req, res) => {
   try {
     const { bookingId, paymentId, orderId, signature } = req.body;
 
-    if (!bookingId || !paymentId || !orderId) {
+    if (!bookingId || !paymentId || !orderId || !signature) {
       return res.status(400).json({
         success: false,
-        message: "Payment verification data required",
+        message: "Complete payment verification data (including signature) is required",
+      });
+    }
+
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({
+        success: false,
+        message: "Payment gateway secret is not configured on the server",
+      });
+    }
+
+    // Cryptographic signature check
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(`${orderId}|${paymentId}`)
+      .digest("hex");
+
+    if (expectedSignature !== signature) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment signature. Verification failed.",
       });
     }
 
@@ -92,16 +121,28 @@ router.post("/verify-payment", protect, async (req, res) => {
       });
     }
 
-    const payment = await Payment.create({
-      booking: bookingId,
-      amount: booking.totalAmount,
-      method: "online",
-      status: "received",
-      gateway: "razorpay",
-      gatewayOrderId: orderId,
-      gatewayPaymentId: paymentId,
-      receivedAt: new Date(),
-    });
+    let payment = await Payment.findOne({ booking: bookingId });
+    if (payment) {
+      payment.amount = booking.totalAmount;
+      payment.method = "online";
+      payment.status = "received";
+      payment.gateway = "razorpay";
+      payment.gatewayOrderId = orderId;
+      payment.gatewayPaymentId = paymentId;
+      payment.receivedAt = new Date();
+      await payment.save();
+    } else {
+      payment = await Payment.create({
+        booking: bookingId,
+        amount: booking.totalAmount,
+        method: "online",
+        status: "received",
+        gateway: "razorpay",
+        gatewayOrderId: orderId,
+        gatewayPaymentId: paymentId,
+        receivedAt: new Date(),
+      });
+    }
 
     booking.paymentMethod = "online";
     booking.paymentStatus = "paid";
@@ -126,12 +167,13 @@ router.post("/verify-payment", protect, async (req, res) => {
 });
 
 // =========================
-// CONFIRM CASH PAYMENT
+// SELECT CASH PAYMENT
 // =========================
+// Customer selects cash payment method. Payment status remains "pending"
+// until the driver confirms cash collection upon trip completion.
 router.put("/confirm-cash/:bookingId", protect, async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const { amountCollected } = req.body;
 
     const booking = await Booking.findOne({
       _id: bookingId,
@@ -145,29 +187,39 @@ router.put("/confirm-cash/:bookingId", protect, async (req, res) => {
       });
     }
 
-    const amountToCollect = Number.isFinite(Number(amountCollected))
-      ? Number(amountCollected)
-      : booking.totalAmount;
+    if (booking.paymentStatus === "paid") {
+      return res.status(400).json({
+        success: false,
+        message: "Booking is already marked as paid",
+      });
+    }
 
     booking.paymentMethod = "cash";
-    booking.paymentStatus = "paid";
+    booking.paymentStatus = "pending";
     await booking.save();
 
-    await Payment.create({
-      booking: bookingId,
-      amount: amountToCollect,
-      method: "cash",
-      status: "received",
-      receivedAt: new Date(),
-    });
+    let payment = await Payment.findOne({ booking: bookingId });
+    if (!payment) {
+      await Payment.create({
+        booking: bookingId,
+        amount: booking.totalAmount,
+        method: "cash",
+        status: "pending",
+        receivedAt: null,
+      });
+    } else {
+      payment.method = "cash";
+      payment.status = "pending";
+      await payment.save();
+    }
 
     return res.status(200).json({
       success: true,
-      message: "Cash payment confirmed",
+      message: "Cash on delivery selected. Please pay directly to your driver upon trip completion.",
       booking,
     });
   } catch (error) {
-    console.error("Confirm cash payment error:", error);
+    console.error("Select cash payment error:", error);
     return res.status(500).json({
       success: false,
       message: "Server error",

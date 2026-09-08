@@ -19,7 +19,7 @@ function AdminRoute({ children }) {
   if (!isLoggedIn) {
     return (
       <Navigate
-        to="/login"
+        to="/admin/login"
         replace
         state={{ from: location.pathname + location.search }}
       />

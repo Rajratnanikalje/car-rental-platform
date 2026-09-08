@@ -516,3 +516,61 @@
     grid-template-columns: 1fr;
   }
 }
+/* ==========================================
+   6-STEP STEPPER (REFERENCE IMAGE 1 TILE 3)
+=========================================== */
+.booking-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 32px;
+  padding: 16px 20px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  overflow-x: auto;
+}
+
+.stepper-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stepper-step.completed {
+  color: #22c55e;
+}
+
+.stepper-step.active {
+  color: #facc15;
+}
+
+.step-circle {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.stepper-step.completed .step-circle {
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.stepper-step.active .step-circle {
+  background: rgba(250, 204, 21, 0.15);
+}
+
+.stepper-arrow {
+  color: #475569;
+  font-size: 14px;
+}

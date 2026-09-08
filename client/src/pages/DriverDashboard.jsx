@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./DriverDashboard.css";
 
 const API_URL = `${import.meta.env.VITE_API_URL}`;
 
 function DriverDashboard() {
-  const navigate = useNavigate();
   const { user, isLoggedIn, loading: authLoading } = useAuth();
 
   const [activeTab, setActiveTab] = useState("earnings");
@@ -25,15 +24,9 @@ function DriverDashboard() {
   // =========================
   // FETCH DRIVER EARNINGS
   // =========================
-  useEffect(() => {
-    if (!authLoading && user?.role === "driver") {
-      fetchEarnings();
-    }
-  }, [authLoading, user]);
-
   const fetchEarnings = async () => {
     try {
-      setLoading(true);
+      setTimeout(() => setLoading(true), 0);
 
       const response = await fetch(`${API_URL}/finance/driver-ledger`, {
         credentials: "include",
@@ -50,6 +43,13 @@ function DriverDashboard() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!authLoading && user?.role === "driver") {
+      const timer = window.setTimeout(fetchEarnings, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [authLoading, user]);
 
   // Redirect if not driver
   if (!authLoading && (!isLoggedIn || user?.role !== "driver")) {
@@ -179,8 +179,14 @@ function DriverDashboard() {
           <section className="tab-content">
             <div className="coming-soon glass-card">
               <h3>Trip Management</h3>
-              <p>View and manage your assigned trips, start trips with OTP verification, and submit odometer readings.</p>
-              <p style={{ fontSize: "0.9rem", opacity: 0.7 }}>Coming soon: Full trip dashboard</p>
+              <p>View and manage your assigned trips, start trips with customer OTP verification, and submit odometer readings.</p>
+              <Link
+                to="/driver-trips"
+                className="shiny-button"
+                style={{ display: "inline-block", marginTop: "16px" }}
+              >
+                Go to Trips Console →
+              </Link>
             </div>
           </section>
         )}
