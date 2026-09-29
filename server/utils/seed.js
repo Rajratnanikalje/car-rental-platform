@@ -3,35 +3,31 @@ const User = require("../models/User");
 const SystemSetting = require("../models/SystemSetting");
 const Car = require("../models/Car");
 
-const DEFAULT_ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@rideon.com";
-const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Admin@123";
-
 async function ensureDefaultAdmin() {
-  const email = DEFAULT_ADMIN_EMAIL.trim().toLowerCase();
+  const rawEmail = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!rawEmail?.trim() || !password) throw new Error("Admin bootstrap requires ADMIN_EMAIL and ADMIN_PASSWORD environment variables");
+  const email = rawEmail.trim().toLowerCase();
 
   const existingUser = await User.findOne({ email });
 
   if (existingUser) {
     if (existingUser.role !== "admin") {
-      existingUser.role = "admin";
-      await existingUser.save();
-      console.log("Admin role granted to existing user ✅");
+      throw new Error("ADMIN_EMAIL belongs to a non-admin account; refusing automatic role promotion");
     }
 
     return existingUser;
   }
 
-  const hashedPassword = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
+  const hashedPassword = await bcrypt.hash(password, 10);
 
   const adminUser = await User.create({
     name: "RideOn Admin",
     email,
     password: hashedPassword,
-    phone: "+919999999999",
     role: "admin",
   });
-
-  console.log(`Default admin created: ${email} ✅`);
+  console.log("Admin account created from configured environment credentials");
 
   return adminUser;
 }
@@ -81,6 +77,7 @@ async function ensureDefaultCars() {
       features: ["AC", "7 Seater", "Touchscreen Display", "Power Steering", "Rear Parking Camera", "Bluetooth"],
       available: true,
       ownershipType: "company",
+      dataOrigin: "demo",
     },
     {
       name: "Creta SX",
@@ -100,6 +97,7 @@ async function ensureDefaultCars() {
       features: ["Sunroof", "Automatic", "Diesel", "Ventilated Seats", "Cruise Control", "Apple CarPlay"],
       available: true,
       ownershipType: "company",
+      dataOrigin: "demo",
     },
     {
       name: "Innova Crysta 2.4 VX",
@@ -119,6 +117,7 @@ async function ensureDefaultCars() {
       features: ["7 Seater Captain Chairs", "Highway Cruiser", "Rear AC Vents", "7 Airbags", "Eco & Power Modes"],
       available: true,
       ownershipType: "company",
+      dataOrigin: "demo",
     },
     {
       name: "Swift ZXi+",
@@ -138,6 +137,7 @@ async function ensureDefaultCars() {
       features: ["Keyless Entry", "Climate Control", "Cruise Control", "Fuel Efficient", "Fog Lamps"],
       available: true,
       ownershipType: "company",
+      dataOrigin: "demo",
     },
     {
       name: "City 1.5 i-VTEC V",
@@ -157,6 +157,7 @@ async function ensureDefaultCars() {
       features: ["Leather Seats", "Paddle Shifters", "LaneWatch Camera", "Sunroof", "High Mileage"],
       available: true,
       ownershipType: "company",
+      dataOrigin: "demo",
     },
     {
       name: "Scorpio-N Z8L 4x4",
@@ -176,6 +177,7 @@ async function ensureDefaultCars() {
       features: ["4x4 Terrain Modes", "Sony 12 Speaker Audio", "Dual Zone AC", "7 Seater", "High Ground Clearance"],
       available: true,
       ownershipType: "company",
+      dataOrigin: "demo",
     },
   ];
 
@@ -187,27 +189,33 @@ async function ensureDefaultDriverAndRides() {
   const Driver = require("../models/Driver");
   const ScheduledRide = require("../models/ScheduledRide");
 
-  const driverEmail = "driver@rideon.com";
+  const driverEmail = process.env.SEED_DRIVER_EMAIL?.trim().toLowerCase();
+  const driverPassword = process.env.SEED_DRIVER_PASSWORD;
+  if (!driverEmail || !driverPassword) {
+    console.log("Demo driver and rides skipped; seed driver credentials are not configured");
+    return;
+  }
   let driverUser = await User.findOne({ email: driverEmail });
 
   if (!driverUser) {
-    const hashedPassword = await bcrypt.hash("Driver@123", 10);
+    const hashedPassword = await bcrypt.hash(driverPassword, 10);
     driverUser = await User.create({
-      name: "Sanjay Patil",
+      name: process.env.SEED_DRIVER_NAME || "Demo Driver",
       email: driverEmail,
       password: hashedPassword,
-      phone: "+919876543210",
+      phone: process.env.SEED_DRIVER_PHONE || "",
       role: "driver",
+      dataOrigin: "demo",
     });
   } else if (driverUser.role !== "driver") {
-    driverUser.role = "driver";
-    await driverUser.save();
+    throw new Error("SEED_DRIVER_EMAIL belongs to a non-driver account; refusing automatic role promotion");
   }
 
   let driverDoc = await Driver.findOne({ user: driverUser._id });
   if (!driverDoc) {
     driverDoc = await Driver.create({
       user: driverUser._id,
+      dataOrigin: "demo",
       mobile: "+919876543210",
       address: "Chikhli, Buldhana, Maharashtra",
       emergencyContact: { name: "Sunil Patil", mobile: "+919876543211" },
@@ -256,6 +264,7 @@ async function ensureDefaultDriverAndRides() {
       const defaultRides = [
         {
           driver: driverDoc._id,
+          dataOrigin: "demo",
           car: ertiga._id,
           pickupPoint: "Pune, Swargate",
           destination: "Mumbai, Dadar",
@@ -267,6 +276,7 @@ async function ensureDefaultDriverAndRides() {
         },
         {
           driver: driverDoc._id,
+          dataOrigin: "demo",
           car: innova._id,
           pickupPoint: "Chikhli, Bus Stand",
           destination: "Aurangabad, CIDCO",
@@ -278,6 +288,7 @@ async function ensureDefaultDriverAndRides() {
         },
         {
           driver: driverDoc._id,
+          dataOrigin: "demo",
           car: ertiga._id,
           pickupPoint: "Chikhli, Gandhi Chowk",
           destination: "Pune, Shivajinagar",
@@ -296,14 +307,11 @@ async function ensureDefaultDriverAndRides() {
 }
 
 async function seedDefaultData() {
-  try {
-    await ensureDefaultAdmin();
-    await ensurePlatformSettings();
-    await ensureDefaultCars();
-    await ensureDefaultDriverAndRides();
-  } catch (error) {
-    console.error("Seed failed ❌:", error.message);
-  }
+  if (process.env.NODE_ENV === "production") throw new Error("Demo seed data is disabled in production");
+  await ensureDefaultAdmin();
+  await ensurePlatformSettings();
+  await ensureDefaultCars();
+  await ensureDefaultDriverAndRides();
 }
 
 module.exports = {

@@ -1,5 +1,6 @@
 const Driver = require("../models/Driver");
 const User = require("../models/User");
+const AuditLog = require("../models/AuditLog");
 const mongoose = require("mongoose");
 
 const safeDriver = (driver) => {
@@ -144,13 +145,30 @@ const updateDriverStatus = async (req, res) => {
     );
     if (!driver) return res.status(404).json({ success: false, message: "Driver not found" });
 
+    const previousStatus = driver.status;
     driver.status = status;
     driver.reviewNote = reviewNote.trim();
     driver.reviewedBy = req.user.id;
     driver.reviewedAt = new Date();
+    driver.verificationHistory.push({
+      status,
+      note: driver.reviewNote,
+      reviewedBy: req.user.id,
+      reviewedAt: driver.reviewedAt,
+    });
     await driver.save();
 
-    if (status === "approved") await User.findByIdAndUpdate(driver.user, { role: "driver" });
+    // Never downgrade an administrator who may also own a driver application.
+    if (status === "approved") await User.updateOne({ _id: driver.user, role: "user" }, { $set: { role: "driver" } });
+    await AuditLog.create({
+      actor: req.user.id,
+      action: `DRIVER_${status.toUpperCase()}`,
+      entityType: "Driver",
+      entityId: driver._id,
+      driver: driver._id,
+      oldValue: { status: previousStatus },
+      newValue: { status, reviewNote: driver.reviewNote },
+    });
     return res.json({ success: true, message: "Driver status updated", driver: adminDriverView(driver) });
   } catch (error) {
     console.error("Update driver status error:", error);
@@ -158,4 +176,31 @@ const updateDriverStatus = async (req, res) => {
   }
 };
 
-module.exports = { applyAsDriver, getMyDriverProfile, getDrivers, updateDriverStatus };
+// Sensitive document URLs are returned only to an authenticated administrator by
+// the existing admin driver listing. This endpoint records the actual review,
+// rather than treating driver approval as a substitute for document approval.
+const reviewDriverDocument = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ success: false, message: "Driver not found" });
+    const { documentType, status, reviewNote = "" } = req.body;
+    if (!["drivingLicence", "identity"].includes(documentType) || !["approved", "rejected", "correction_requested"].includes(status)) {
+      return res.status(422).json({ success: false, message: "Provide a valid document type and review status" });
+    }
+    if (status !== "approved" && !reviewNote.trim()) return res.status(422).json({ success: false, message: "A review note is required" });
+    const driver = await Driver.findById(req.params.id).select("+drivingLicence.number +drivingLicence.documentUrl +identity.documentNumber +identity.documentUrl");
+    if (!driver) return res.status(404).json({ success: false, message: "Driver not found" });
+    const document = driver[documentType];
+    const oldValue = { verificationStatus: document.verificationStatus || "pending", reviewNote: document.reviewNote || "" };
+    document.verificationStatus = status;
+    document.reviewNote = reviewNote.trim();
+    document.verifiedAt = new Date();
+    await driver.save();
+    await AuditLog.create({ actor: req.user.id, action: "DRIVER_DOCUMENT_REVIEWED", entityType: "Driver", entityId: driver._id, driver: driver._id, oldValue, newValue: { documentType, status, reviewNote: document.reviewNote } });
+    return res.json({ success: true, message: "Document review recorded", driver: adminDriverView(driver) });
+  } catch (error) {
+    console.error("Review driver document error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+module.exports = { applyAsDriver, getMyDriverProfile, getDrivers, updateDriverStatus, reviewDriverDocument };

@@ -9,7 +9,7 @@ try {
 
 const connectDB = async () => {
   try {
-    const mongoUri = process.env.MONGO_URI ? process.env.MONGO_URI.trim() : "";
+    const mongoUri = (process.env.MONGODB_URI || process.env.MONGO_URI || "").trim();
     await mongoose.connect(mongoUri);
 
     console.log("MongoDB Atlas Connected Successfully ✅");

@@ -12,6 +12,15 @@ export default function DriverPortal() {
   const [activeTab, setActiveTab] = useState("dashboard"); // 'dashboard' | 'vehicle' | 'trips' | 'seat-rides' | 'earnings' | 'settlements' | 'documents' | 'support'
   const [trips, setTrips] = useState([]);
   const [ledger, setLedger] = useState(null);
+  const [vehicles, setVehicles] = useState([]);
+  const [serviceAreas, setServiceAreas] = useState([]);
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
+  const [vehicleError, setVehicleError] = useState("");
+  const [vehicleSubmitting, setVehicleSubmitting] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState(null);
+  const [documentType, setDocumentType] = useState("");
+  const [documentUrl, setDocumentUrl] = useState("");
+  const [vehicleForm, setVehicleForm] = useState({ name: "", brand: "", model: "", year: new Date().getFullYear(), category: "Sedan", transmission: "Manual", fuelType: "Petrol", seats: 5, pricePerDay: "", pricePerKm: 0, includedKm: 300, location: "", serviceAreas: [], registrationNumber: "", image: "", description: "", features: "", documents: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -50,7 +59,7 @@ export default function DriverPortal() {
 
       if (ledgerRes.ok) {
         const lData = await ledgerRes.json();
-        setLedger(lData.ledger || null);
+        setLedger(lData.totals || null);
       }
     } catch (err) {
       console.error("Driver data error:", err);
@@ -60,13 +69,43 @@ export default function DriverPortal() {
     }
   };
 
+  const fetchVehicles = async () => {
+    setVehiclesLoading(true); setVehicleError("");
+    try {
+      const response = await fetch(`${API_URL}/cars/driver/mine`, { credentials: "include" });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to load your vehicles");
+      setVehicles(Array.isArray(data.cars) ? data.cars : []);
+    } catch (err) { setVehicleError(err.message); }
+    finally { setVehiclesLoading(false); }
+  };
+
+  const submitVehicle = async (event) => {
+    event.preventDefault(); setVehicleSubmitting(true); setVehicleError("");
+    try {
+      const payload = { ...vehicleForm, features: typeof vehicleForm.features === "string" ? vehicleForm.features.split(",").map((v) => v.trim()).filter(Boolean) : vehicleForm.features, documents: [...vehicleForm.documents, ...(documentType.trim() && documentUrl.trim() ? [{ documentType: documentType.trim(), documentUrl: documentUrl.trim() }] : [])] };
+      const response = await fetch(editingVehicle ? `${API_URL}/cars/driver/mine/${editingVehicle._id}` : `${API_URL}/cars/driver/mine`, { method: editingVehicle ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(payload) });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || "Vehicle submission failed");
+      setVehicleForm({ name: "", brand: "", model: "", year: new Date().getFullYear(), category: "Sedan", transmission: "Manual", fuelType: "Petrol", seats: 5, pricePerDay: "", pricePerKm: 0, includedKm: 300, location: "", serviceAreas: [], registrationNumber: "", image: "", description: "", features: "", documents: [] });
+      setEditingVehicle(null); setDocumentType(""); setDocumentUrl("");
+      await fetchVehicles();
+    } catch (err) { setVehicleError(err.message); }
+    finally { setVehicleSubmitting(false); }
+  };
+
+  useEffect(() => {
+    fetch(`${API_URL}/service-areas`).then((response) => response.json()).then((data) => setServiceAreas(data.areas || [])).catch(() => setServiceAreas([]));
+  }, []);
+
   useEffect(() => {
     if (!isLoggedIn) {
       navigate("/login");
       return;
     }
     const timer = window.setTimeout(fetchDriverData, 0);
-    return () => window.clearTimeout(timer);
+    const vehicleTimer = window.setTimeout(fetchVehicles, 0);
+    return () => { window.clearTimeout(timer); window.clearTimeout(vehicleTimer); };
   }, [isLoggedIn, navigate]);
 
   // Mark Driver Arrival (Step 1)
@@ -279,9 +318,7 @@ export default function DriverPortal() {
             >
               {loading ? "..." : "🔄 Refresh"}
             </button>
-            <div className="driver-status-badge approved">
-              <span>●</span> Duty: Online & Available
-            </div>
+            <div className="driver-status-badge approved">Driver account</div>
           </div>
         </header>
 
@@ -290,19 +327,19 @@ export default function DriverPortal() {
         {/* 3 STATS CARDS (IMAGE 1 TILE 5) */}
         <section className="driver-stats-grid">
           <div className="driver-stat-card glass-card">
-            <span className="stat-title">Today's Trips</span>
+            <span className="stat-title">Completed Trips</span>
             <strong className="stat-num">{loading ? "..." : trips.filter((t) => t.bookingStatus === "completed").length}</strong>
           </div>
           <div className="driver-stat-card glass-card">
             <span className="stat-title">Earnings</span>
             <strong className="stat-num highlight-gold">
-              ₹ {ledger ? ledger.driverEarnings.toLocaleString("en-IN") : "4,850"}
+              ₹ {ledger?.netEarnings?.toLocaleString("en-IN") || "0"}
             </strong>
           </div>
           <div className="driver-stat-card glass-card">
             <span className="stat-title">Pending Settlement</span>
             <strong className="stat-num highlight-blue">
-              ₹ {ledger ? ledger.amountPayableToDriver.toLocaleString("en-IN") : "8,200"}
+              ₹ {ledger?.pendingPayout?.toLocaleString("en-IN") || "0"}
             </strong>
           </div>
         </section>
@@ -392,21 +429,21 @@ export default function DriverPortal() {
         {/* TAB 2: MY VEHICLE */}
         {activeTab === "vehicle" && (
           <div className="driver-vehicle-view glass-card">
-            <h3>Assigned Fleet Vehicle</h3>
-            <div className="vehicle-details-split">
-              <div className="assigned-vehicle-placeholder" style={{ width: "240px", height: "160px", background: "#1e293b", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "40px" }}>
-                🚗
-              </div>
-              <div className="vehicle-details-info">
-                <h4>Toyota Innova Crysta 2.4 VX</h4>
-                <p>Registration Number: <strong>MH 28 BD 4829</strong></p>
-                <p>Seating Capacity: <strong>7 Seater (AC)</strong></p>
-                <p>Fuel Type: <strong>Diesel</strong></p>
-                <p>RC Validity: <strong>Active (Valid till Dec 2030)</strong></p>
-                <p>Insurance Status: <strong>Comprehensive (Valid)</strong></p>
-                <span className="vehicle-inspection-badge">✓ Clean & Mechanically Certified</span>
-              </div>
-            </div>
+            <h3>My Vehicles</h3>
+            <button type="button" className="driver-btn-outline" onClick={fetchVehicles} disabled={vehiclesLoading}>Refresh</button>
+            {vehicleError && <p role="alert">{vehicleError}</p>}
+            {vehiclesLoading ? <p>Loading your vehicles…</p> : vehicles.length === 0 ? <p>No vehicles submitted yet.</p> : vehicles.map((car) => <article key={car._id} className="vehicle-details-split">
+              {car.image ? <img src={car.image} alt={`${car.brand} ${car.model}`} style={{ width: 240, height: 160, objectFit: "cover", borderRadius: 12 }} /> : <div className="assigned-vehicle-placeholder">🚗</div>}
+              <div className="vehicle-details-info"><h4>{car.name || `${car.brand} ${car.model}`}</h4><p>Registration: <strong>{car.registrationNumber || "Not provided"}</strong></p><p>{car.year} · {car.seats} seats · {car.fuelType} · {car.transmission}</p><p>₹{Number(car.pricePerDay).toLocaleString("en-IN")} / day · {car.location}</p><p>Review: <strong>{car.verificationStatus}</strong> · Availability: <strong>{car.available ? "Available" : "Unavailable"}</strong></p>{car.verificationStatus === "rejected" && <p>Review note: {car.verificationReviewNote || "No reason provided. Contact support/admin."}</p>}{["pending", "rejected"].includes(car.verificationStatus) && <button type="button" className="driver-btn-outline" onClick={() => { setEditingVehicle(car); setVehicleForm({ ...car, features: (car.features || []).join(", "), documents: car.documents || [] }); }}>Edit and resubmit</button>}{car.documents?.map((doc, index) => <p key={`${doc.documentType}-${index}`}><a href={doc.documentUrl} target="_blank" rel="noreferrer">{doc.documentType} document ({doc.status})</a></p>)}</div>
+            </article>)}
+            <h4>{editingVehicle ? "Edit and resubmit vehicle" : "Add a vehicle"}</h4>
+            <form onSubmit={submitVehicle} className="vehicle-details-info" style={{ display: "grid", gap: 10, maxWidth: 680 }}>
+              {[["name", "Vehicle name"], ["brand", "Brand"], ["model", "Model"], ["year", "Year"], ["category", "Category"], ["transmission", "Transmission"], ["fuelType", "Fuel type"], ["seats", "Seats"], ["pricePerDay", "Price per day"], ["pricePerKm", "Price per km"], ["includedKm", "Included km"], ["location", "Location"], ["registrationNumber", "Registration number"], ["image", "Vehicle image URL"], ["features", "Features (comma separated)"], ["description", "Description"]].map(([key, label]) => <label key={key}>{label}<input required={!['pricePerKm','includedKm','image','features','description'].includes(key)} value={vehicleForm[key]} onChange={(e) => setVehicleForm((prev) => ({ ...prev, [key]: e.target.value }))} /></label>)}
+              <label>Supported service areas<select multiple value={(vehicleForm.serviceAreas || []).map(String)} onChange={(e) => setVehicleForm((prev) => ({ ...prev, serviceAreas: Array.from(e.target.selectedOptions, (option) => option.value) }))}>{serviceAreas.map((area) => <option key={area._id} value={area._id}>{area.name}</option>)}</select><small>Hold Ctrl to select multiple areas.</small></label>
+              <label>Vehicle document type<input value={documentType} onChange={(e) => setDocumentType(e.target.value)} placeholder="Registration certificate / insurance" /></label><label>Document URL<input value={documentUrl} onChange={(e) => setDocumentUrl(e.target.value)} placeholder="Secure document URL" /></label>
+              <button type="submit" className="shiny-button" disabled={vehicleSubmitting}>{vehicleSubmitting ? "Submitting…" : editingVehicle ? "Resubmit for approval" : "Submit for approval"}</button>
+              {editingVehicle && <button type="button" className="driver-btn-outline" onClick={() => { setEditingVehicle(null); setVehicleForm({ name: "", brand: "", model: "", year: new Date().getFullYear(), category: "Sedan", transmission: "Manual", fuelType: "Petrol", seats: 5, pricePerDay: "", pricePerKm: 0, includedKm: 300, location: "", serviceAreas: [], registrationNumber: "", image: "", description: "", features: "", documents: [] }); }}>Cancel edit</button>}
+            </form>
           </div>
         )}
 
@@ -417,24 +454,22 @@ export default function DriverPortal() {
             <div className="ledger-breakdown-card">
               <div className="ledger-row">
                 <span>Total Gross Fare Completed</span>
-                <strong>₹ 12,000</strong>
+                <strong>₹ {ledger?.grossAmount?.toLocaleString("en-IN") || 0}</strong>
               </div>
               <div className="ledger-row">
-                <span>RideOn Platform Commission (10%)</span>
-                <span className="commission-text">- ₹ 1,200</span>
+                <span>Platform Commission & Fee</span>
+                <span className="commission-text">- ₹ {ledger?.commissionPayable?.toLocaleString("en-IN") || 0}</span>
               </div>
               <div className="ledger-row total">
                 <strong>Net Driver Earnings</strong>
-                <strong className="gold-text">₹ 10,800</strong>
-              </div>
-              <div className="ledger-row">
-                <span>Cash Collected Directly from Customers</span>
-                <span>₹ 3,500</span>
+                <strong className="gold-text">₹ {ledger?.netEarnings?.toLocaleString("en-IN") || 0}</strong>
               </div>
               <div className="ledger-row settlement-status">
                 <strong>Amount Payable by RideOn (Online Settlement)</strong>
-                <strong className="payout-highlight">₹ 7,300</strong>
+                <strong className="payout-highlight">₹ {ledger?.driverPayout?.toLocaleString("en-IN") || 0}</strong>
               </div>
+              <div className="ledger-row"><span>Pending payout</span><strong>{ledger?.pendingPayout?.toLocaleString("en-IN") || 0}</strong></div>
+              <div className="ledger-row"><span>Paid out</span><strong>{ledger?.paidPayout?.toLocaleString("en-IN") || 0}</strong></div>
             </div>
           </div>
         )}
@@ -443,23 +478,7 @@ export default function DriverPortal() {
         {activeTab === "documents" && (
           <div className="driver-docs-view glass-card">
             <h3>Verified Identity & Documents</h3>
-            <div className="docs-list-grid">
-              <div className="doc-item-box">
-                <strong>Commercial Driving Licence</strong>
-                <span>MH2820210012345 • Verified</span>
-                <span className="doc-status-ok">✓ Active</span>
-              </div>
-              <div className="doc-item-box">
-                <strong>Aadhaar Card</strong>
-                <span>XXXX-XXXX-9012 • Verified</span>
-                <span className="doc-status-ok">✓ Active</span>
-              </div>
-              <div className="doc-item-box">
-                <strong>Bank Payout Account</strong>
-                <span>SBI (A/C: *******890) • IFSC: SBIN0001234</span>
-                <span className="doc-status-ok">✓ Primary Verified</span>
-              </div>
-            </div>
+            <p>Driver identity documents are managed in your driver application. Vehicle documents are listed with each vehicle.</p>
           </div>
         )}
 
@@ -469,16 +488,7 @@ export default function DriverPortal() {
             <h3>Driver Partner Helpdesk</h3>
             <p>Emergency assistance, breakdown support, and dispatch resolution:</p>
             <div className="support-channels-row">
-              <div className="support-box">
-                <span className="support-icon">📞</span>
-                <strong>Driver Helpline</strong>
-                <span>+91 1800-RIDE-DRIVER</span>
-              </div>
-              <div className="support-box">
-                <span className="support-icon">🚨</span>
-                <strong>Roadside SOS</strong>
-                <span>24/7 Breakdown Assistance</span>
-              </div>
+              <div className="support-box"><strong>Driver support</strong><span>Contact the platform support team for assistance.</span></div>
             </div>
           </div>
         )}

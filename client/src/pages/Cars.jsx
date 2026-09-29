@@ -1,16 +1,29 @@
 import { API_URL } from "../config/api";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import CarCard from "../components/CarCard";
 import "./Cars.css";
 
-
 function Cars() {
+  const [searchParams] = useSearchParams();
   const [cars, setCars] = useState([]);
+  const [areas, setAreas] = useState([]);
+  const [serviceArea, setServiceArea] = useState(() => searchParams.get("area") || "");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [search, setSearch] = useState("");
+  // A pickup city is a trip detail, not a fleet attribute. Keep it in the
+  // booking query while showing the complete backend-provided fleet here.
+  const [search, setSearch] = useState(() => searchParams.get("location") || searchParams.get("search") || "");
+  const bookingQuery = useMemo(() => {
+    const params = new URLSearchParams();
+      ["pickup", "destination", "date", "time"].forEach((key) => {
+      const value = searchParams.get(key);
+      if (value) params.set(key, value);
+    });
+    if (serviceArea) params.set("area", serviceArea);
+    return params.toString();
+  }, [searchParams, serviceArea]);
   const [fuelType, setFuelType] = useState("all");
   const [seats, setSeats] = useState("all");
   const [sortBy, setSortBy] = useState("default");
@@ -19,12 +32,20 @@ function Cars() {
   // FETCH CARS
   // =========================
   useEffect(() => {
+    fetch(`${API_URL}/service-areas`).then((response) => response.json()).then((data) => setAreas(data.areas || [])).catch(() => setAreas([]));
+  }, []);
+
+  useEffect(() => {
     const fetchCars = async () => {
       try {
         setLoading(true);
         setError("");
 
-        const response = await fetch(`${API_URL}/cars`);
+        const params = new URLSearchParams();
+        if (serviceArea) params.set("serviceArea", serviceArea);
+        if (fuelType !== "all") params.set("fuelType", fuelType);
+        if (seats !== "all") params.set("seats", seats);
+        const response = await fetch(`${API_URL}/cars?${params.toString()}`);
 
         const data = await response.json();
 
@@ -48,7 +69,7 @@ function Cars() {
     };
 
     fetchCars();
-  }, []);
+  }, [serviceArea, fuelType, seats]);
 
   // =========================
   // FILTER + SEARCH + SORT
@@ -65,7 +86,8 @@ function Cars() {
           car.name?.toLowerCase().includes(searchValue) ||
           car.brand?.toLowerCase().includes(searchValue) ||
           car.model?.toLowerCase().includes(searchValue) ||
-          car.category?.toLowerCase().includes(searchValue)
+          car.category?.toLowerCase().includes(searchValue) ||
+          car.location?.toLowerCase().includes(searchValue)
         );
       });
     }
@@ -206,6 +228,10 @@ function Cars() {
           </div>
 
           <div className="cars-filter-group">
+            <select className="cars-select" value={serviceArea} onChange={(event) => setServiceArea(event.target.value)} aria-label="Service area">
+              <option value="">All service areas</option>
+              {areas.map((area) => <option key={area._id} value={area._id}>{area.name}</option>)}
+            </select>
             <select
               className="cars-select"
               value={fuelType}
@@ -336,6 +362,7 @@ function Cars() {
               <CarCard
                 key={car._id}
                 car={car}
+                bookingQuery={bookingQuery}
               />
             ))}
           </div>

@@ -2,6 +2,11 @@ const express = require("express");
 
 const {
   getCars,
+  getAdminCars,
+  getMyCars,
+  createDriverCar,
+  updateDriverCar,
+  deleteDriverCar,
   getCarById,
   createCar,
   updateCar,
@@ -11,6 +16,7 @@ const {
 const {
   protect,
   adminOnly,
+  approvedDriverOnly,
 } = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -21,6 +27,11 @@ const router = express.Router();
 // =========================
 
 router.get("/", getCars);
+router.get("/admin/all", protect, adminOnly, getAdminCars);
+router.get("/driver/mine", protect, approvedDriverOnly, getMyCars);
+router.post("/driver/mine", protect, approvedDriverOnly, createDriverCar);
+router.put("/driver/mine/:id", protect, approvedDriverOnly, updateDriverCar);
+router.delete("/driver/mine/:id", protect, approvedDriverOnly, deleteDriverCar);
 
 router.get("/:id", getCarById);
 

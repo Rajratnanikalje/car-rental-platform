@@ -32,6 +32,7 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "driver", "admin"],
       default: "user",
     },
+    dataOrigin: { type: String, enum: ["demo", "production", "legacy"], default: "legacy" },
   },
   {
     timestamps: true,

@@ -5,6 +5,7 @@ const { seedDefaultData } = require('../utils/seed');
 
 async function runSeed() {
   try {
+    if (process.env.NODE_ENV === 'production') throw new Error('Demo seed command is disabled in production');
     await connectDB();
     await seedDefaultData();
     console.log('Seed completed successfully ✅');

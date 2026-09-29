@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "seed": "node scripts/seed-admin.js"
+    "seed": "node scripts/seed-admin.js",
+    "cleanup:demo:preview": "node scripts/cleanup-demo-data.js",
+    "cleanup:demo:delete": "node scripts/cleanup-demo-data.js --delete"
   },
   "keywords": [],
   "author": "",

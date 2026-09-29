@@ -1,4 +1,4 @@
-import { API_URL } from "../../config/api";
+import { API_URL, getAuthHeaders } from "../../config/api";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -27,8 +27,8 @@ export default function CustomerPortal() {
       setError("");
 
       const [bRes, sRes] = await Promise.all([
-        fetch(`${API_URL}/bookings/my`, { credentials: "include" }),
-        fetch(`${API_URL}/seat-rides/my-bookings`, { credentials: "include" }),
+        fetch(`${API_URL}/bookings/my`, { headers: getAuthHeaders(), credentials: "include" }),
+        fetch(`${API_URL}/seat-rides/my-bookings`, { headers: getAuthHeaders(), credentials: "include" }),
       ]);
 
       if (bRes.ok) {
@@ -70,7 +70,7 @@ export default function CustomerPortal() {
   const loadCustomerOtp = async (bookingId) => {
     try {
       setOtpData({ otp: "", expiresAt: "", loading: true, error: "" });
-      const res = await fetch(`${API_URL}/trips/${bookingId}/start-code`, { credentials: "include" });
+      const res = await fetch(`${API_URL}/trips/${bookingId}/start-code`, { headers: getAuthHeaders(), credentials: "include" });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data?.message || "OTP unlocks once your driver marks arrival at pickup.");
@@ -105,7 +105,7 @@ export default function CustomerPortal() {
           <p><strong>Date:</strong> ${new Date(booking.createdAt).toLocaleDateString()}</p>
           <p><strong>Customer:</strong> ${user?.name || "Customer"}</p>
           <p><strong>Vehicle:</strong> ${booking.car?.brand} ${booking.car?.model}</p>
-          <p><strong>Route:</strong> ${booking.pickupLocation} ➔ ${booking.car?.location || "Dropoff"}</p>
+          <p><strong>Route:</strong> ${booking.pickupLocation} ➔ ${booking.destination}</p>
           <hr/>
           <p><strong>Rental Days:</strong> ${booking.totalDays} day(s)</p>
           <p><strong>Rate:</strong> ₹${booking.pricePerDay} / day</p>
@@ -277,7 +277,7 @@ export default function CustomerPortal() {
                     <div className="point-dot dropoff" />
                     <div className="point-info">
                       <small>Destination</small>
-                      <strong>{activeBooking.car?.location || "Destination"}</strong>
+                      <strong>{activeBooking.destination}</strong>
                     </div>
                   </div>
 
@@ -305,16 +305,18 @@ export default function CustomerPortal() {
                     </div>
 
                     {/* Driver Card with Call Button */}
-                    <div className="driver-mini-profile">
-                      <div className="driver-avatar-circle">👨‍✈️</div>
-                      <div className="driver-names">
-                        <strong>Sanjay Patil</strong>
-                        <span>★ 4.8 (Verified Partner)</span>
+                    {activeBooking.driver?.user ? (
+                      <div className="driver-mini-profile">
+                        <div className="driver-avatar-circle">Driver</div>
+                        <div className="driver-names">
+                          <strong>{activeBooking.driver.user.name}</strong>
+                          <span>Verified RideOn partner</span>
+                        </div>
+                        {activeBooking.driver.user.phone && (
+                          <a href={`tel:${activeBooking.driver.user.phone}`} className="driver-call-btn">Call</a>
+                        )}
                       </div>
-                      <a href="tel:+919876543210" className="driver-call-btn">
-                        📞 Call
-                      </a>
-                    </div>
+                    ) : <p className="driver-assignment-pending">Driver details will appear once a driver is assigned.</p>}
                   </div>
                 </div>
               </section>
@@ -347,7 +349,7 @@ export default function CustomerPortal() {
                         onClick={() => setSelectedBooking(b)}
                       >
                         <div className="trip-card-top">
-                          <strong>{b.pickupLocation} ➔ {b.car?.location || "Outstation"}</strong>
+                          <strong>{b.pickupLocation} ➔ {b.destination}</strong>
                           <span className={`status-pill ${b.bookingStatus}`}>{b.bookingStatus}</span>
                         </div>
                         <div className="trip-card-meta">
@@ -486,7 +488,7 @@ export default function CustomerPortal() {
                 {filteredBookings.map((b) => (
                   <div key={b._id} className="booking-list-card glass-card">
                     <div className="booking-card-main">
-                      <h4>{b.pickupLocation} ➔ {b.car?.location || "Destination"}</h4>
+                      <h4>{b.pickupLocation} ➔ {b.destination}</h4>
                       <p>🚗 {b.car?.brand} {b.car?.model} • 📅 {new Date(b.pickupDate).toLocaleDateString()} to {new Date(b.returnDate).toLocaleDateString()}</p>
                     </div>
                     <div className="booking-card-meta">

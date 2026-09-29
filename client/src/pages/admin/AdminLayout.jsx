@@ -24,6 +24,7 @@ export default function AdminLayout() {
   const getSectionTitle = () => {
     const path = location.pathname;
     if (path.includes("/admin/vehicles")) return "Fleet & Vehicles";
+    if (path.includes("/admin/service-areas")) return "Service Areas";
     if (path.includes("/admin/drivers")) return "Driver Verification & Management";
     if (path.includes("/admin/bookings")) return "Booking Management";
     if (path.includes("/admin/trips")) return "Trips & Safety Oversight";
@@ -84,6 +85,10 @@ export default function AdminLayout() {
             >
               <span className="admin-nav-icon">🚗</span>
               <span className="admin-nav-text">Vehicles</span>
+            </NavLink>
+
+            <NavLink to="/admin/service-areas" className={({ isActive }) => `admin-nav-item ${isActive ? "active" : ""}`} onClick={closeSidebar}>
+              <span className="admin-nav-icon">⌖</span><span className="admin-nav-text">Service Areas</span>
             </NavLink>
 
             <NavLink

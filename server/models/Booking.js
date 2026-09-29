@@ -7,18 +7,42 @@ const bookingSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    dataOrigin: { type: String, enum: ["demo", "production", "legacy"], default: "legacy" },
 
     car: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Car",
       required: true,
     },
+    serviceArea: { type: mongoose.Schema.Types.ObjectId, ref: "ServiceArea", default: null },
 
     bookingType: {
       type: String,
       enum: ["PRIVATE_CAR", "SEAT_RIDE"],
       default: "PRIVATE_CAR",
       immutable: true,
+    },
+    tripType: { type: String, enum: ["DAILY", "OUTSTATION"], default: "DAILY" },
+    roundTrip: { type: Boolean, default: false },
+    routeSnapshot: {
+      origin: { type: String, default: "" },
+      destination: { type: String, default: "" },
+      distanceKm: { type: Number, default: 0, min: 0 },
+      duration: { type: String, default: null },
+      provider: { type: String, default: "" },
+      calculatedAt: { type: Date, default: null },
+    },
+    financialSnapshot: {
+      grossAmount: { type: Number, default: 0, min: 0 },
+      commissionPercentage: { type: Number, default: 0, min: 0, max: 100 },
+      fixedCommission: { type: Number, default: 0, min: 0 },
+      commissionAmount: { type: Number, default: 0, min: 0 },
+      platformFee: { type: Number, default: 0, min: 0 },
+      taxPercentage: { type: Number, default: 0, min: 0, max: 100 },
+      taxAmount: { type: Number, default: 0, min: 0 },
+      driverEarnings: { type: Number, default: 0, min: 0 },
+      refundAmount: { type: Number, default: 0, min: 0 },
+      finalPayout: { type: Number, default: 0, min: 0 },
     },
 
     driver: {
@@ -44,6 +68,18 @@ const bookingSchema = new mongoose.Schema(
     },
 
     pickupLocation: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    destination: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    pickupTime: {
       type: String,
       required: true,
       trim: true,

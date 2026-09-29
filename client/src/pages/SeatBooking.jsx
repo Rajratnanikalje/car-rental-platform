@@ -1,4 +1,4 @@
-import { API_URL } from "../config/api";
+import { API_URL, getAuthHeaders } from "../config/api";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -17,6 +17,7 @@ function SeatBooking() {
   const [filters, setFilters] = useState({
     pickupPoint: searchParams.get("pickupPoint") || "",
     destination: searchParams.get("destination") || "",
+    date: searchParams.get("date") || "",
   });
 
   const [selectedRide, setSelectedRide] = useState(null);
@@ -40,6 +41,7 @@ function SeatBooking() {
         const params = new URLSearchParams();
         if (filters.pickupPoint.trim()) params.append("pickupPoint", filters.pickupPoint.trim());
         if (filters.destination.trim()) params.append("destination", filters.destination.trim());
+        if (filters.date) params.append("date", filters.date);
         if (params.toString()) url += "?" + params.toString();
 
         const response = await fetch(url);
@@ -77,19 +79,25 @@ function SeatBooking() {
         seats: selectedSeats,
         pickupLocation: activeRide.pickupPoint,
         destination: activeRide.destination,
+        passengerName: passengerName.trim(),
+        passengerPhone: passengerPhone.trim(),
         paymentMethod,
       };
 
       const response = await fetch(`${API_URL}/seat-rides/${activeRide._id}/bookings`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         credentials: "include",
         body: JSON.stringify(payload),
       });
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data?.message || "Failed to confirm seat booking");
+        throw new Error(
+          response.status === 409
+            ? "Sorry, the selected seats are no longer available."
+            : data?.message || "Failed to confirm seat booking"
+        );
       }
 
       setBookingSuccess({
@@ -98,14 +106,13 @@ function SeatBooking() {
         ride: activeRide,
       });
 
-      // Update remaining seats in local list
-      setRides((prev) =>
-        prev.map((r) =>
-          r._id === activeRide._id
-            ? { ...r, availableSeats: Math.max(0, r.availableSeats - selectedSeats) }
-            : r
-        )
-      );
+      // Refresh from the server after reserving: concurrent seat availability
+      // is authoritative only on the backend.
+      const refreshedResponse = await fetch(`${API_URL}/seat-rides/${activeRide._id}`);
+      const refreshedData = await refreshedResponse.json();
+      if (refreshedResponse.ok && refreshedData?.ride) {
+        setRides((prev) => prev.map((ride) => ride._id === activeRide._id ? refreshedData.ride : ride));
+      }
     } catch (err) {
       console.error("Booking error:", err);
       setBookingError(err.message);
@@ -143,10 +150,18 @@ function SeatBooking() {
               onChange={(e) => setFilters((p) => ({ ...p, destination: e.target.value }))}
             />
           </div>
+          <div className="filter-field">
+            <label>Travel Date</label>
+            <input
+              type="date"
+              value={filters.date}
+              onChange={(e) => setFilters((p) => ({ ...p, date: e.target.value }))}
+            />
+          </div>
           <button
             type="button"
             className="filter-reset-btn"
-            onClick={() => setFilters({ pickupPoint: "", destination: "" })}
+            onClick={() => setFilters({ pickupPoint: "", destination: "", date: "" })}
           >
             Clear Filters
           </button>

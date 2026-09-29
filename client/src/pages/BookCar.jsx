@@ -1,12 +1,13 @@
-import { API_URL } from "../config/api";
+import { API_URL, getAuthHeaders } from "../config/api";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./BookCar.css";
 
 
 function BookCar() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const {
@@ -16,6 +17,7 @@ function BookCar() {
   } = useAuth();
 
   const [car, setCar] = useState(null);
+  const [serviceAreas, setServiceAreas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -24,15 +26,24 @@ function BookCar() {
   const [notFound, setNotFound] = useState(false);
 
   const [formData, setFormData] = useState({
-    pickupDate: "",
+    pickupDate: searchParams.get("date") || "",
     returnDate: "",
-    pickupLocation: "",
+    pickupLocation: searchParams.get("pickup") || "",
+    destination: searchParams.get("destination") || "",
+    pickupTime: searchParams.get("time") || "",
     paymentMethod: "cash",
+    tripType: "DAILY",
+    roundTrip: false,
+    serviceArea: searchParams.get("area") || "",
   });
 
   // =========================
   // FETCH CAR
   // =========================
+  useEffect(() => {
+    fetch(`${API_URL}/service-areas`).then((response) => response.json()).then((data) => setServiceAreas(data.areas || [])).catch(() => setServiceAreas([]));
+  }, []);
+
   useEffect(() => {
     const fetchCar = async () => {
       try {
@@ -228,10 +239,12 @@ function BookCar() {
     if (
       !formData.pickupDate ||
       !formData.returnDate ||
-      !formData.pickupLocation.trim()
+      !formData.pickupLocation.trim() ||
+      !formData.destination.trim() ||
+      !formData.pickupTime
     ) {
       setError(
-        "Please provide pickup date, return date and pickup location."
+        "Please provide pickup, destination, pickup date, time and return date."
       );
 
       return;
@@ -280,9 +293,7 @@ function BookCar() {
         {
           method: "POST",
 
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: getAuthHeaders(),
 
           // IMPORTANT:
           // JWT is stored in HttpOnly cookie
@@ -293,7 +304,12 @@ function BookCar() {
             pickupDate: formData.pickupDate,
             returnDate: formData.returnDate,
             pickupLocation: formData.pickupLocation.trim(),
+            destination: formData.destination.trim(),
+            pickupTime: formData.pickupTime,
             paymentMethod: formData.paymentMethod,
+            tripType: formData.tripType,
+            roundTrip: formData.tripType === "OUTSTATION" && formData.roundTrip,
+            serviceArea: formData.serviceArea,
           }),
         }
       );
@@ -622,6 +638,27 @@ function BookCar() {
               onSubmit={handleSubmit}
             >
 
+              <div className="book-form-group">
+                <label htmlFor="serviceArea">Service area</label>
+                <select id="serviceArea" name="serviceArea" value={formData.serviceArea} onChange={handleChange} disabled={submitting} required>
+                  <option value="">Choose pickup area</option>
+                  {serviceAreas.map((area) => <option key={area._id} value={area._id}>{area.name}</option>)}
+                </select>
+                {serviceAreas.length === 0 && <small>No active service areas are configured yet.</small>}
+              </div>
+
+              <div className="book-form-group">
+                <label htmlFor="tripType">Trip type</label>
+                <select id="tripType" name="tripType" value={formData.tripType} onChange={handleChange} disabled={submitting}>
+                  <option value="DAILY">Daily rental</option>
+                  <option value="OUTSTATION" disabled={Number(car.pricePerKm) <= 0}>Outstation by route KM</option>
+                </select>
+              </div>
+              {formData.tripType === "OUTSTATION" && <label className="book-form-group" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <input type="checkbox" name="roundTrip" checked={formData.roundTrip} onChange={(event) => setFormData((previous) => ({ ...previous, roundTrip: event.target.checked }))} disabled={submitting} />
+                Round trip (verified return route distance is included)
+              </label>}
+
               {/* =========================
                   DATES
               ========================== */}
@@ -697,6 +734,34 @@ function BookCar() {
                   Example: Chikhli, Buldana
                 </small>
 
+              </div>
+
+              <div className="book-form-group">
+                <label htmlFor="destination">Destination</label>
+                <input
+                  id="destination"
+                  name="destination"
+                  type="text"
+                  placeholder="Enter destination"
+                  value={formData.destination}
+                  onChange={handleChange}
+                  disabled={submitting}
+                  maxLength={200}
+                  required
+                />
+              </div>
+
+              <div className="book-form-group">
+                <label htmlFor="pickupTime">Pickup time</label>
+                <input
+                  id="pickupTime"
+                  name="pickupTime"
+                  type="time"
+                  value={formData.pickupTime}
+                  onChange={handleChange}
+                  disabled={submitting}
+                  required
+                />
               </div>
 
               {/* =========================
@@ -792,7 +857,7 @@ function BookCar() {
                 <div className="book-summary-total">
 
                   <span>
-                    Estimated rental
+                    {formData.tripType === "OUTSTATION" ? "Daily base (route fare is finalized server-side)" : "Estimated rental"}
                   </span>
 
                   <strong>
@@ -804,7 +869,7 @@ function BookCar() {
                 </div>
 
                 <p className="book-summary-note">
-                  Extra KM charges, if
+                  {formData.tripType === "OUTSTATION" ? "The server calculates real road distance and final route fare when you book." : "Extra KM charges, if"}
                   applicable, are calculated
                   after the actual KM is recorded.
                 </p>

@@ -5,9 +5,10 @@ import "./AdminPages.css";
 
 export default function AdminSettings() {
   const [settings, setSettings] = useState({
-    commissionPercentage: 10,
-    fixedCommission: 200,
-    platformFee: 50,
+    commissionPercentage: "",
+    fixedCommission: "",
+    platformFee: "",
+    taxPercentage: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -22,9 +23,10 @@ export default function AdminSettings() {
       const data = await response.json();
       if (response.ok && data.success && data.settings) {
         setSettings({
-          commissionPercentage: data.settings.commissionPercentage ?? 10,
-          fixedCommission: data.settings.fixedCommission ?? 200,
-          platformFee: data.settings.platformFee ?? 50,
+          commissionPercentage: data.settings.commissionPercentage ?? "",
+          fixedCommission: data.settings.fixedCommission ?? "",
+          platformFee: data.settings.platformFee ?? "",
+          taxPercentage: data.settings.taxPercentage ?? 0,
         });
       }
     } catch (err) {
@@ -154,15 +156,10 @@ export default function AdminSettings() {
               </small>
             </div>
 
-            <div style={{ background: "rgba(255,255,255,0.03)", padding: "16px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.06)", fontSize: "13px" }}>
-              <strong style={{ color: "#818cf8" }}>🧮 Example Fare Calculation:</strong>
-              <div style={{ marginTop: "6px", color: "#cbd5e1" }}>
-                On a ₹3,000 trip with current settings:
-                <br />
-                • Platform Share: ₹{((3000 * settings.commissionPercentage) / 100) + settings.fixedCommission + settings.platformFee}
-                <br />
-                • Driver Earnings: ₹{3000 - (((3000 * settings.commissionPercentage) / 100) + settings.fixedCommission + settings.platformFee)}
-              </div>
+            <div className="admin-form-group">
+              <label>Tax Percentage (%)</label>
+              <input type="number" name="taxPercentage" min="0" max="100" step="0.1" value={settings.taxPercentage} onChange={handleChange} required />
+              <small>Applied to fare plus platform fee; existing bookings keep their saved pricing snapshot.</small>
             </div>
 
             <div>

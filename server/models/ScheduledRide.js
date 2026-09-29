@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const scheduledRideSchema = new mongoose.Schema(
   {
     driver: { type: mongoose.Schema.Types.ObjectId, ref: "Driver", required: true, index: true },
+    dataOrigin: { type: String, enum: ["demo", "production", "legacy"], default: "legacy" },
     car: { type: mongoose.Schema.Types.ObjectId, ref: "Car", required: true },
     pickupPoint: { type: String, required: true, trim: true, maxlength: 300 },
     destination: { type: String, required: true, trim: true, maxlength: 300 },

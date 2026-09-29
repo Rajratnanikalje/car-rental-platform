@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./Login.css";
 
-import { API_URL, setAuthToken } from "../config/api";
+import { API_URL } from "../config/api";
 
 function Login() {
   const navigate = useNavigate();
@@ -134,14 +134,10 @@ function Login() {
         return;
       }
 
-      if (data?.token) {
-        setAuthToken(data.token);
-      }
-
       // =========================
       // UPDATE AUTH CONTEXT
       // =========================
-      login(data.user, data?.token);
+      login(data.user);
 
       // =========================
       // REDIRECT

@@ -38,6 +38,7 @@ import AdminFraudDisputes from "./pages/admin/AdminFraudDisputes";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminCms from "./pages/admin/AdminCms";
 import AdminAuditLogs from "./pages/admin/AdminAuditLogs";
+import AdminServiceAreas from "./pages/admin/AdminServiceAreas";
 
 function App() {
   return (
@@ -148,6 +149,7 @@ function App() {
             <Route path="dashboard" element={<AdminOverview />} />
             <Route path="drivers" element={<AdminDrivers />} />
             <Route path="vehicles" element={<AdminVehicles />} />
+            <Route path="service-areas" element={<AdminServiceAreas />} />
             <Route path="bookings" element={<AdminBookings />} />
             <Route path="trips" element={<AdminTrips />} />
             <Route path="seat-rides" element={<AdminSeatRides />} />

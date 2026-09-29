@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const auditLogSchema = new mongoose.Schema(
   {
     actor: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    dataOrigin: { type: String, enum: ["demo", "production", "legacy"], default: "legacy" },
     action: { type: String, required: true, trim: true },
     entityType: { type: String, required: true, trim: true },
     entityId: { type: mongoose.Schema.Types.ObjectId, required: true },

@@ -13,11 +13,7 @@ export const DEFAULT_CMS_DATA = {
     primaryButtonLink: "/cars",
     secondaryButtonText: "Get Started",
     secondaryButtonLink: "/register",
-    trustItems: [
-      { title: "Flexible", subtitle: "Vehicle plans" },
-      { title: "24/7", subtitle: "Booking Access" },
-      { title: "Clear", subtitle: "Pricing" },
-    ],
+    trustItems: [],
     vehicleTag: "RideOn Vehicle",
     vehicleStatus: "Available",
     vehicleTitle: "Premium Drive",
@@ -91,50 +87,7 @@ export const DEFAULT_CMS_DATA = {
     ],
   },
 
-  services: {
-    sectionTag: "Our Services",
-    title: "Premium mobility solutions tailored for you.",
-    description:
-      "Whether you need a daily rental, outstation trip, or a professional driver, RideOn has you covered.",
-    items: [
-      {
-        icon: "🚗",
-        title: "Self-Drive Rental",
-        description:
-          "Freedom of driving pristine, verified vehicles with flexible KM packages and zero hidden charges.",
-      },
-      {
-        icon: "👨‍✈️",
-        title: "Chauffeur Driven",
-        description:
-          "Trained, background-verified professional drivers for business trips, airport drops, or special events.",
-      },
-      {
-        icon: "🛣️",
-        title: "Outstation Trips",
-        description:
-          "Seamless inter-city one-way drops and round trips with 24/7 dedicated roadside assistance.",
-      },
-      {
-        icon: "👥",
-        title: "Shared Rides",
-        description:
-          "Affordable shared seat booking for popular city corridors with verified co-passengers.",
-      },
-      {
-        icon: "⚡",
-        title: "Instant Verification",
-        description:
-          "Digital driving license and Aadhaar KYC verification approved within minutes.",
-      },
-      {
-        icon: "🛡️",
-        title: "Comprehensive Insurance",
-        description:
-          "All vehicles are fully insured with 24/7 breakdown assistance for peace of mind on every journey.",
-      },
-    ],
-  },
+  services: { sectionTag: "", title: "", description: "", items: [] },
 
   fleet: {
     sectionTag: "Our fleet",
@@ -159,56 +112,26 @@ export const DEFAULT_CMS_DATA = {
   },
 
   testimonials: {
-    sectionTag: "Renter Stories",
-    title: "Loved by thousands of happy travelers.",
-    description:
-      "Read what verified renters and regular road-trippers have to say about their RideOn journey.",
-    items: [
-      {
-        name: "Rahul Sharma",
-        role: "Frequent Traveler • Bengaluru",
-        rating: 5,
-        comment:
-          "Booking was completely seamless! The car was delivered sanitized, smelled fresh, and performed flawlessly on my Western Ghats trip.",
-        initials: "RS",
-      },
-      {
-        name: "Priya Nair",
-        role: "Product Designer • Mumbai",
-        rating: 5,
-        comment:
-          "Transparent pricing without any hidden charges at the end. The flexible KM package saved me over 30% compared to traditional car hires!",
-        initials: "PN",
-      },
-      {
-        name: "Amit Verma",
-        role: "Weekend Explorer • Pune",
-        rating: 5,
-        comment:
-          "Driver verification and instant security deposit refund was phenomenal. RideOn is now my only go-to platform for self-drive cars.",
-        initials: "AV",
-      },
-    ],
+    sectionTag: "",
+    title: "",
+    description: "",
+    items: [],
   },
 
   contact: {
-    phone: "+91 98765 43210",
-    email: "support@rideon.com",
-    address: "RideOn Central Hub, Outer Ring Road, Bengaluru, Karnataka, India",
-    workingHours: "24 Hours / 7 Days a Week",
-    emergencyPhone: "+91 98765 43219",
-    whatsapp: "+919876543210",
-    supportNote: "Our team responds to all inquiries within 15 minutes.",
+    phone: "",
+    email: "",
+    address: "",
+    workingHours: "",
+    emergencyPhone: "",
+    whatsapp: "",
+    supportNote: "",
   },
 
   footer: {
     description:
       "Reliable cars, transparent pricing and a simple rental experience for every journey.",
     copyrightText: "RideOn Car Rentals. All rights reserved.",
-    facebookUrl: "https://facebook.com",
-    twitterUrl: "https://twitter.com",
-    instagramUrl: "https://instagram.com",
-    linkedinUrl: "https://linkedin.com",
     privacyUrl: "#privacy",
     termsUrl: "#terms",
   },

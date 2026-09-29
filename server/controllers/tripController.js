@@ -4,8 +4,9 @@ const mongoose = require("mongoose");
 const Booking = require("../models/Booking");
 const Driver = require("../models/Driver");
 const Trip = require("../models/Trip");
+const DriverLedger = require("../models/DriverLedger");
 const AuditLog = require("../models/AuditLog");
-const { getActiveSettings, createFinancialRecords } = require("./financeController");
+const { createFinancialRecords } = require("./financeController");
 
 const isValidId = (id) => mongoose.isValidObjectId(id);
 const makeOtp = () => crypto.randomInt(100000, 1000000).toString();
@@ -108,57 +109,60 @@ const verifyAndStartTrip = async (req, res) => {
 };
 
 const completeTrip = async (req, res) => {
+  const session = await mongoose.startSession();
   try {
     const { odometer, photoUrl, location } = req.body;
     if (!isValidId(req.params.bookingId)) return res.status(404).json({ success: false, message: "Trip not found" });
     if (!validEvidence({ odometer, photoUrl, location })) return res.status(400).json({ success: false, message: "End odometer, dashboard photo and end location are required" });
-    const trip = await Trip.findOne({ booking: req.params.bookingId, driver: req.driver._id });
-    if (!trip) return res.status(404).json({ success: false, message: "Assigned trip not found" });
-    if (trip.status !== "trip_started" && trip.status !== "trip_in_progress") return res.status(409).json({ success: false, message: "Trip must be started before completion" });
-    if (!trip.startEvidence) return res.status(409).json({ success: false, message: "Trip cannot complete without start evidence" });
-
-    const endOdometer = Number(odometer);
-    if (endOdometer < trip.startEvidence.odometer) {
-      return res.status(400).json({
-        success: false,
-        message: `End odometer reading (${endOdometer} KM) cannot be less than start odometer reading (${trip.startEvidence.odometer} KM)`,
-      });
-    }
-
-    // Do not complete a financial trip until an admin has configured commission rules.
-    await getActiveSettings();
-
-    const distance = endOdometer - trip.startEvidence.odometer;
-    const flags = [];
-    if (distance > 2000) flags.push("UNUSUAL_DISTANCE");
-    trip.endEvidence = { odometer: endOdometer, photoUrl: photoUrl.trim(), location: location.trim(), recordedAt: new Date() };
-    trip.actualDistanceKm = distance;
-    trip.fraudFlags = [...new Set([...trip.fraudFlags, ...flags])];
-    trip.fraudReviewStatus = flags.length ? "flagged" : "clear";
-    trip.status = "trip_completed";
-    await trip.save();
-
-    const booking = await Booking.findById(trip.booking);
-    booking.totalKm = distance;
-    booking.extraKm = Math.max(distance - booking.includedKm, 0);
-    booking.extraKmAmount = booking.extraKm * booking.pricePerKm;
-    booking.totalAmount = booking.rentalAmount + booking.extraKmAmount;
-    booking.bookingStatus = "completed";
-    await booking.save();
-    const ledger = await createFinancialRecords({ booking, driver: req.driver._id });
-    await AuditLog.create({
-      actor: req.user.id,
-      action: "TRIP_COMPLETED_AND_LEDGER_CREATED",
-      entityType: "Trip",
-      entityId: trip._id,
-      booking: booking._id,
-      driver: req.driver._id,
-      newValue: { actualDistanceKm: distance, totalAmount: booking.totalAmount, commissionAmount: ledger.commissionAmount, driverEarnings: ledger.driverEarnings },
+    let result;
+    await session.withTransaction(async () => {
+      const trip = await Trip.findOne({ booking: req.params.bookingId, driver: req.driver._id }).session(session);
+      if (!trip) { const error = new Error("Assigned trip not found"); error.statusCode = 404; throw error; }
+      if (trip.status === "trip_completed") {
+        const booking = await Booking.findById(trip.booking).session(session);
+        let ledger = await DriverLedger.findOne({ booking: trip.booking }).session(session);
+        if (booking && !ledger) ledger = await createFinancialRecords({ booking, driver: req.driver._id, session });
+        result = { trip, booking, ledger, alreadyCompleted: true };
+        return;
+      }
+      if (trip.status !== "trip_started" && trip.status !== "trip_in_progress") { const error = new Error("Trip must be started before completion"); error.statusCode = 409; throw error; }
+      if (!trip.startEvidence) { const error = new Error("Trip cannot complete without start evidence"); error.statusCode = 409; throw error; }
+      const endOdometer = Number(odometer);
+      if (endOdometer < trip.startEvidence.odometer) { const error = new Error("End odometer cannot be less than start odometer"); error.statusCode = 400; throw error; }
+      const distance = endOdometer - trip.startEvidence.odometer;
+      const flags = distance > 2000 ? ["UNUSUAL_DISTANCE"] : [];
+      const changedTrip = await Trip.findOneAndUpdate(
+        { _id: trip._id, status: { $in: ["trip_started", "trip_in_progress"] } },
+        { $set: { endEvidence: { odometer: endOdometer, photoUrl: photoUrl.trim(), location: location.trim(), recordedAt: new Date() }, actualDistanceKm: distance, fraudFlags: [...new Set([...trip.fraudFlags, ...flags])], fraudReviewStatus: flags.length ? "flagged" : "clear", status: "trip_completed" } },
+        { new: true, session }
+      );
+      if (!changedTrip) { const error = new Error("Trip completion is already being processed"); error.statusCode = 409; throw error; }
+      const booking = await Booking.findById(trip.booking).session(session);
+      if (!booking) { const error = new Error("Booking not found for this trip"); error.statusCode = 409; throw error; }
+      booking.totalKm = distance;
+      const billableDistance = booking.tripType === "OUTSTATION" ? booking.routeSnapshot?.distanceKm || 0 : 0;
+      booking.extraKm = Math.max(billableDistance - booking.includedKm * booking.totalDays, 0);
+      booking.extraKmAmount = booking.extraKm * booking.pricePerKm;
+      const gross = booking.tripType === "OUTSTATION" ? booking.rentalAmount + booking.extraKmAmount : booking.rentalAmount;
+      const pct = booking.financialSnapshot?.commissionPercentage || 0;
+      const commission = Math.min(gross, Math.round(gross * pct) / 100 + (booking.financialSnapshot?.fixedCommission || 0));
+      const fee = Math.min(Math.max(0, gross - commission), booking.financialSnapshot?.platformFee || 0);
+      const tax = Math.round((gross + fee) * (booking.financialSnapshot?.taxPercentage || 0)) / 100;
+      const earnings = Math.max(0, gross - commission - fee);
+      booking.totalAmount = gross + fee + tax;
+      booking.financialSnapshot = { ...booking.financialSnapshot.toObject?.(), grossAmount: gross, commissionAmount: commission, platformFee: fee, taxAmount: tax, driverEarnings: earnings, finalPayout: earnings };
+      booking.bookingStatus = "completed";
+      await booking.save({ session });
+      const ledger = await createFinancialRecords({ booking, driver: req.driver._id, session });
+      await AuditLog.create([{ actor: req.user.id, action: "TRIP_COMPLETED_AND_LEDGER_CREATED", entityType: "Trip", entityId: trip._id, booking: booking._id, driver: req.driver._id, newValue: { actualDistanceKm: distance, totalAmount: booking.totalAmount, commissionAmount: ledger.commissionAmount, driverEarnings: ledger.driverEarnings } }], { session });
+      result = { trip: changedTrip, booking, ledger, alreadyCompleted: false };
     });
-    return res.json({ success: true, message: "Trip completed; final fare and commission recorded by the server", trip: { id: trip._id, status: trip.status, actualDistanceKm: distance, fraudFlags: trip.fraudFlags }, booking, ledger });
+    return res.json({ success: true, message: result.alreadyCompleted ? "Trip completion was already recorded" : "Trip completed; final fare and commission recorded by the server", trip: { id: result.trip._id, status: result.trip.status, actualDistanceKm: result.trip.actualDistanceKm, fraudFlags: result.trip.fraudFlags }, booking: result.booking, ledger: result.ledger });
   } catch (error) {
     console.error("Complete trip error:", error);
     return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Server error" });
+  } finally {
+    await session.endSession();
   }
 };
 
@@ -208,4 +212,26 @@ const getAllTrips = async (req, res) => {
   }
 };
 
-module.exports = { assignDriver, getCustomerOtp, markArrival, verifyAndStartTrip, completeTrip, getDriverTrips, getAllTrips };
+const reviewTripRisk = async (req, res) => {
+  try {
+    if (!isValidId(req.params.id)) return res.status(404).json({ success: false, message: "Trip not found" });
+    const { status, note = "" } = req.body;
+    if (!["clear", "flagged", "under_review", "resolved"].includes(status)) return res.status(422).json({ success: false, message: "Invalid risk review status" });
+    if (["under_review", "resolved"].includes(status) && !note.trim()) return res.status(422).json({ success: false, message: "A review note is required" });
+    const trip = await Trip.findById(req.params.id);
+    if (!trip) return res.status(404).json({ success: false, message: "Trip not found" });
+    const oldValue = { fraudReviewStatus: trip.fraudReviewStatus, fraudReviewNote: trip.fraudReviewNote };
+    trip.fraudReviewStatus = status;
+    trip.fraudReviewNote = note.trim();
+    trip.fraudReviewedBy = req.user.id;
+    trip.fraudReviewedAt = new Date();
+    await trip.save();
+    await AuditLog.create({ actor: req.user.id, action: "TRIP_RISK_REVIEWED", entityType: "Trip", entityId: trip._id, booking: trip.booking, driver: trip.driver, oldValue, newValue: { fraudReviewStatus: status, fraudReviewNote: trip.fraudReviewNote } });
+    return res.json({ success: true, message: "Risk review recorded", trip });
+  } catch (error) {
+    console.error("Review trip risk error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+module.exports = { assignDriver, getCustomerOtp, markArrival, verifyAndStartTrip, completeTrip, getDriverTrips, getAllTrips, reviewTripRisk };

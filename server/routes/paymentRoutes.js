@@ -6,24 +6,31 @@ const { protect } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
+const razorpayRequest = async (path, method = "GET", body) => {
+  const response = await fetch(`https://api.razorpay.com/v1${path}`, {
+    method,
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64")}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error?.description || "Payment gateway request failed");
+  return data;
+};
+
 // =========================
 // CREATE PAYMENT ORDER
 // =========================
 router.post("/create-order", protect, async (req, res) => {
   try {
-    const { bookingId, amount } = req.body;
+    const { bookingId } = req.body;
 
-    if (!bookingId || !amount) {
+    if (!bookingId) {
       return res.status(400).json({
         success: false,
-        message: "Booking ID and amount required",
-      });
-    }
-
-    if (amount <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid amount",
+        message: "Booking ID is required",
       });
     }
 
@@ -56,13 +63,29 @@ router.post("/create-order", protect, async (req, res) => {
       });
     }
 
-    const orderId = `order_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const amountPaise = Math.round(Number(booking.totalAmount) * 100);
+    if (!Number.isSafeInteger(amountPaise) || amountPaise <= 0) {
+      return res.status(400).json({ success: false, message: "Booking amount is invalid" });
+    }
+    const order = await razorpayRequest("/orders", "POST", {
+      amount: amountPaise,
+      currency: "INR",
+      receipt: String(booking._id),
+      notes: { bookingId: String(booking._id), userId: String(req.user.id) },
+    });
+    await Payment.findOneAndUpdate(
+      { booking: booking._id },
+      { $set: { amount: booking.totalAmount, method: "online", status: "pending", gateway: "razorpay", gatewayOrderId: order.id, dataOrigin: "production" } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     return res.status(201).json({
       success: true,
       message: "Payment order created",
-      orderId,
-      amount: amount,
+      orderId: order.id,
+      // Fare is always calculated by the booking service, never accepted from
+      // the browser. This prevents a customer from changing the order amount.
+      amount: booking.totalAmount,
       bookingId: bookingId,
       keyId: process.env.RAZORPAY_KEY_ID,
     });
@@ -102,7 +125,9 @@ router.post("/verify-payment", protect, async (req, res) => {
       .update(`${orderId}|${paymentId}`)
       .digest("hex");
 
-    if (expectedSignature !== signature) {
+    const expected = Buffer.from(expectedSignature, "hex");
+    const supplied = Buffer.from(String(signature), "hex");
+    if (expected.length !== supplied.length || !crypto.timingSafeEqual(expected, supplied)) {
       return res.status(400).json({
         success: false,
         message: "Invalid payment signature. Verification failed.",
@@ -121,32 +146,35 @@ router.post("/verify-payment", protect, async (req, res) => {
       });
     }
 
-    let payment = await Payment.findOne({ booking: bookingId });
-    if (payment) {
-      payment.amount = booking.totalAmount;
-      payment.method = "online";
-      payment.status = "received";
-      payment.gateway = "razorpay";
-      payment.gatewayOrderId = orderId;
-      payment.gatewayPaymentId = paymentId;
-      payment.receivedAt = new Date();
-      await payment.save();
-    } else {
-      payment = await Payment.create({
-        booking: bookingId,
-        amount: booking.totalAmount,
-        method: "online",
-        status: "received",
-        gateway: "razorpay",
-        gatewayOrderId: orderId,
-        gatewayPaymentId: paymentId,
-        receivedAt: new Date(),
-      });
+    const paymentIntent = await Payment.findOne({ booking: bookingId, gatewayOrderId: orderId, method: "online" }).select("+gatewayOrderId +gatewayPaymentId");
+    if (!paymentIntent) return res.status(400).json({ success: false, message: "Payment order does not match this booking" });
+    if (booking.paymentStatus === "paid") {
+      return paymentIntent.gatewayPaymentId === paymentId
+        ? res.status(200).json({ success: true, message: "Payment was already verified", payment: { id: paymentIntent._id, status: paymentIntent.status, amount: paymentIntent.amount } })
+        : res.status(409).json({ success: false, message: "Booking already has a different successful payment" });
     }
 
-    booking.paymentMethod = "online";
-    booking.paymentStatus = "paid";
-    await booking.save();
+    const [order, gatewayPayment] = await Promise.all([
+      razorpayRequest(`/orders/${encodeURIComponent(orderId)}`),
+      razorpayRequest(`/payments/${encodeURIComponent(paymentId)}`),
+    ]);
+    if (order.id !== orderId || order.receipt !== String(booking._id) || order.amount !== Math.round(booking.totalAmount * 100) ||
+      gatewayPayment.order_id !== orderId || gatewayPayment.amount !== order.amount || gatewayPayment.currency !== "INR" || gatewayPayment.status !== "captured") {
+      return res.status(400).json({ success: false, message: "Payment is not captured for the exact booking amount" });
+    }
+
+    const payment = await Payment.findOneAndUpdate(
+      { _id: paymentIntent._id, status: "pending", gatewayOrderId: orderId },
+      { $set: { status: "received", gatewayPaymentId: paymentId, receivedAt: new Date() } },
+      { new: true }
+    ).select("+gatewayOrderId +gatewayPaymentId");
+    if (!payment) return res.status(409).json({ success: false, message: "Payment verification is already being processed" });
+    const paidBooking = await Booking.findOneAndUpdate(
+      { _id: bookingId, user: req.user.id, paymentStatus: { $ne: "paid" } },
+      { $set: { paymentMethod: "online", paymentStatus: "paid" } },
+      { new: true }
+    );
+    if (!paidBooking) return res.status(409).json({ success: false, message: "Could not mark booking paid; contact support" });
 
     return res.status(200).json({
       success: true,

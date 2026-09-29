@@ -1,498 +1,383 @@
-import { API_URL } from "../config/api";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import "./Home.css";
+import { API_URL } from "../config/api";
 import CarCard from "../components/CarCard";
 import { useCms } from "../hooks/useCms";
-
+import "./Home.css";
 
 function Home() {
   const navigate = useNavigate();
   const [cars, setCars] = useState([]);
-  const [seatRides, setSeatRides] = useState([]);
-  const [searchTab, setSearchTab] = useState("private");
-  const [searchFrom, setSearchFrom] = useState("Chikhli");
-  const [searchTo, setSearchTo] = useState("Aurangabad");
-  const [searchDate, setSearchDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
-  });
+  const [carsLoading, setCarsLoading] = useState(true);
+  const [searchTab, setSearchTab] = useState("private"); // "private" | "seat"
+  const [pickup, setPickup] = useState("");
+  const [drop, setDrop] = useState("");
+  const [travelDate, setTravelDate] = useState("");
+  const [travelTime, setTravelTime] = useState("");
 
   const { cms } = useCms();
-  const hero = cms.hero || {};
-  const about = cms.about || {};
-  const fleet = cms.fleet || {};
-  const gallery = cms.gallery || {};
-  const testimonials = cms.testimonials || {};
+  const heroCms = cms?.hero || {};
 
   useEffect(() => {
     const controller = new AbortController();
 
-    const fetchHomeData = async () => {
+    const fetchFeaturedCars = async () => {
       try {
-        const [carsRes, ridesRes] = await Promise.all([
-          fetch(`${API_URL}/cars`, { signal: controller.signal }),
-          fetch(`${API_URL}/seat-rides`, { signal: controller.signal }),
-        ]);
-
-        if (carsRes.ok) {
-          const carsData = await carsRes.json();
-          if (Array.isArray(carsData?.cars)) {
-            setCars(carsData.cars.filter((car) => car.available).slice(0, 3));
+        setCarsLoading(true);
+        const res = await fetch(`${API_URL}/cars`, { signal: controller.signal });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data?.cars)) {
+            // Show up to 3 available cars
+            const available = data.cars.filter((c) => c.available !== false);
+            setCars(available.length > 0 ? available.slice(0, 3) : data.cars.slice(0, 3));
           }
         }
-
-        if (ridesRes.ok) {
-          const ridesData = await ridesRes.json();
-          if (Array.isArray(ridesData?.rides)) {
-            setSeatRides(ridesData.rides.slice(0, 3));
-          }
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          console.error("Fetch featured cars error:", err);
         }
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          console.error("Home data fetch error:", error);
-        }
+      } finally {
+        setCarsLoading(false);
       }
     };
 
-    fetchHomeData();
+    fetchFeaturedCars();
     return () => controller.abort();
   }, []);
 
-  const handleHeroSearch = (e) => {
+  const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (searchTab === "seat") {
-      navigate(`/seat-rides?pickupPoint=${encodeURIComponent(searchFrom)}&destination=${encodeURIComponent(searchTo)}`);
+      const params = new URLSearchParams({
+        pickupPoint: pickup.trim(),
+        destination: drop.trim(),
+        date: travelDate,
+        time: travelTime,
+      });
+      navigate(`/seat-rides?${params.toString()}`);
     } else {
-      navigate(`/cars?location=${encodeURIComponent(searchFrom)}`);
+      // The fleet endpoint does not price a trip until a car is selected. Keep
+      // the journey details in the URL so the booking form can prefill them.
+      const params = new URLSearchParams({
+        pickup,
+        destination: drop,
+        date: travelDate,
+        time: travelTime,
+      });
+      navigate(`/cars?${params.toString()}`);
     }
   };
 
   return (
-    <main className="home-page">
-      {/* 1. HERO SECTION (REFERENCE IMAGE 1 TILE 1 & IMAGE 2 LEFT) */}
-      <section
-        className="home-hero-banner"
-        style={
-          hero.heroBgImage
-            ? {
-                backgroundImage: `linear-gradient(rgba(10, 15, 29, 0.72), rgba(10, 15, 29, 0.9)), url(${hero.heroBgImage})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }
-            : undefined
-        }
-      >
-        <div className="hero-banner-overlay" />
-        <div className="hero-banner-content">
-          <span className="hero-tag-pill">
-            {hero.badgeText || "Smart Rides. Better Journeys."}
+    <main className="rideon-home">
+      {/* ====================================================
+          1. HERO SECTION WITH CITY SKYLINE & FLOATING SEARCH
+      ===================================================== */}
+      <section className="hero-section">
+        <div className="hero-overlay" />
+        <div className="hero-content">
+          <span className="hero-pill-badge">
+            {heroCms.badgeText || "Smart Rides. Better Journeys."}
           </span>
-
-          <h1 className="hero-headline">
-            {hero.headingMain || "Your Ride,"}
-            <span className="hero-headline-gold">
-              {" "}
-              {hero.headingHighlight || "Our Priority"}
-            </span>
+          <h1 className="hero-title">
+            Your Ride, <span className="hero-highlight">Our Priority</span>
           </h1>
-
-          <p className="hero-subheadline">
-            {hero.description ||
-              "Private car rentals, intercity rides, and scheduled seat bookings — all in one place."}
+          <p className="hero-subtitle">
+            {heroCms.description ||
+              "Fast, reliable and comfortable car rental & intercity seat ride service."}
           </p>
 
-          {/* TABBED SEARCH WIDGET */}
-          <div className="hero-search-container glass-card">
-            <div className="search-tab-bar">
+          {/* FLOATING BOOKING SEARCH BOX */}
+          <div className="floating-search-card">
+            {/* TABS */}
+            <div className="search-tabs">
               <button
                 type="button"
-                className={`search-tab-btn ${searchTab === "private" ? "active" : ""}`}
+                className={`search-tab-pill ${searchTab === "private" ? "active" : ""}`}
                 onClick={() => setSearchTab("private")}
               >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.2 2 11.8 2 12.3V16c0 .6.4 1 1 1h2" />
+                  <circle cx="7" cy="17" r="2" />
+                  <path d="M9 17h6" />
+                  <circle cx="17" cy="17" r="2" />
+                </svg>
                 Private Car
               </button>
               <button
                 type="button"
-                className={`search-tab-btn ${searchTab === "seat" ? "active" : ""}`}
+                className={`search-tab-pill ${searchTab === "seat" ? "active" : ""}`}
                 onClick={() => setSearchTab("seat")}
               >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
                 Seat Ride
-              </button>
-              <button
-                type="button"
-                className={`search-tab-btn ${searchTab === "intercity" ? "active" : ""}`}
-                onClick={() => setSearchTab("intercity")}
-              >
-                Intercity
               </button>
             </div>
 
-            <form className="search-inputs-grid" onSubmit={handleHeroSearch}>
-              <div className="search-input-field">
-                <label>From</label>
+            {/* INPUTS ROW */}
+            <form className="search-form-row" onSubmit={handleSearchSubmit}>
+              <div className="form-input-group">
+                <label>Pickup Location</label>
+                <div className="input-with-icon">
+                  <span className="input-icon">📍</span>
+                  <input
+                    type="text"
+                    value={pickup}
+                    onChange={(e) => setPickup(e.target.value)}
+                    placeholder="Enter pickup city"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-input-group">
+                <label>Drop Location</label>
+                <div className="input-with-icon">
+                  <span className="input-icon">🏁</span>
+                  <input
+                    type="text"
+                    value={drop}
+                    onChange={(e) => setDrop(e.target.value)}
+                    placeholder="Enter drop city"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-input-group">
+                <label>Date &amp; Time</label>
+                <div className="input-with-icon">
+                  <span className="input-icon">📅</span>
+                  <input
+                    type="date"
+                    value={travelDate}
+                    onChange={(e) => setTravelDate(e.target.value)}
+                    required
+                  />
+                </div>
                 <input
-                  type="text"
-                  value={searchFrom}
-                  onChange={(e) => setSearchFrom(e.target.value)}
-                  placeholder="e.g. Chikhli"
+                  className="travel-time-input"
+                  type="time"
+                  value={travelTime}
+                  onChange={(e) => setTravelTime(e.target.value)}
+                  aria-label="Pickup time"
                   required
                 />
               </div>
 
-              <div className="search-input-field">
-                <label>To</label>
-                <input
-                  type="text"
-                  value={searchTo}
-                  onChange={(e) => setSearchTo(e.target.value)}
-                  placeholder="e.g. Aurangabad"
-                  required
-                />
+              <div className="form-button-group">
+                <button type="submit" className="search-action-btn">
+                  Search
+                </button>
               </div>
-
-              <div className="search-input-field">
-                <label>Date</label>
-                <input
-                  type="date"
-                  value={searchDate}
-                  onChange={(e) => setSearchDate(e.target.value)}
-                  required
-                />
-              </div>
-
-              <button type="submit" className="search-submit-btn">
-                Search
-              </button>
             </form>
           </div>
         </div>
       </section>
 
-      {/* 2. OUR SERVICES (5 CARDS - IMAGE 1 TILE 1 & IMAGE 2) */}
-      <section className="section services-section-clean">
-        <div className="section-header-centered">
-          <span className="section-eyebrow">What We Offer</span>
-          <h2>Our Services</h2>
-        </div>
-
-        <div className="services-grid-five">
-          <Link to="/cars" className="service-card-clean glass-card">
-            <div className="service-icon-clean">🚗</div>
-            <h3>Private Car Rental</h3>
-            <p>Comfortable & safe travel for you and your family.</p>
-          </Link>
-
-          <Link to="/cars" className="service-card-clean glass-card">
-            <div className="service-icon-clean">⛽</div>
-            <h3>Intercity Rides</h3>
-            <p>Long distance rides across Maharashtra cities.</p>
-          </Link>
-
-          <Link to="/seat-rides" className="service-card-clean glass-card">
-            <div className="service-icon-clean">🚌</div>
-            <h3>Seat Booking</h3>
-            <p>Share the ride, share the cost with verified commuters.</p>
-          </Link>
-
-          <Link to="/driver-register" className="service-card-clean glass-card">
-            <div className="service-icon-clean">👨‍✈️</div>
-            <h3>Driver Partner</h3>
-            <p>Become a driver partner with us and earn steady daily payouts.</p>
-          </Link>
-
-          <Link to="/cars" className="service-card-clean glass-card">
-            <div className="service-icon-clean">✈️</div>
-            <h3>Airport/Local Travel</h3>
-            <p>Hassle-free airport transfers and seamless local trips.</p>
-          </Link>
-        </div>
-      </section>
-
-      {/* 3. WHY CHOOSE RIDEON (4 CARDS - IMAGE 1 TILE 1 & IMAGE 2) */}
-      <section className="section why-choose-clean">
-        <div className="section-header-centered">
-          <span className="section-eyebrow">Trust & Value</span>
-          <h2>Why Choose RideOn</h2>
-        </div>
-
-        <div className="why-grid-four">
-          <div className="why-card glass-card">
-            <div className="why-icon">🛡️</div>
-            <h3>Safe & Reliable</h3>
-            <p>Verified drivers & vehicles thoroughly inspected for long journeys.</p>
-          </div>
-
-          <div className="why-card glass-card">
-            <div className="why-icon">💰</div>
-            <h3>Affordable Pricing</h3>
-            <p>Best transparent prices in the market with zero hidden surcharges.</p>
-          </div>
-
-          <div className="why-card glass-card">
-            <div className="why-icon">📞</div>
-            <h3>24/7 Support</h3>
-            <p>We are always here to assist your trips and emergency travel needs.</p>
-          </div>
-
-          <div className="why-card glass-card">
-            <div className="why-icon">⚡</div>
-            <h3>Easy Booking</h3>
-            <p>Fast & simple process — book in under 60 seconds with instant confirmation.</p>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. PROMO BANNERS: APP DOWNLOAD & BOOK PRIVATE CAR (IMAGE 2 LEFT) */}
-      <section className="section promo-banners-section">
-        <div className="promo-banners-grid">
-          {/* Download App Banner */}
-          <div className="promo-card app-download-card glass-card">
-            <div className="promo-text-content">
-              <span className="promo-tag">Mobile Experience</span>
-              <h3>Download RideOn App</h3>
-              <p>Book rides faster, track your driver live, and get exclusive discounts.</p>
-              <div className="store-buttons-row">
-                <div className="store-badge-mockup">
-                  <span>▶</span> Google Play
-                </div>
-                <div className="store-badge-mockup">
-                  <span></span> App Store
-                </div>
-              </div>
-            </div>
-            <div className="app-mockup-phone">
-              <div className="phone-screen-frame">
-                <span className="phone-notch" />
-                <div className="phone-mockup-inner">
-                  <strong>RideOn</strong>
-                  <small>Smart Rides</small>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Book Private Car Banner */}
-          <div className="promo-card private-car-promo-card glass-card">
-            <div className="promo-text-content">
-              <span className="promo-tag">Premium Fleet</span>
-              <h3>Book Your Private Car</h3>
-              <p>Comfortable, premium & safe rides for your special journeys and corporate trips.</p>
-              <Link to="/cars" className="shiny-button promo-cta-btn">
-                Book Now →
-              </Link>
-            </div>
-            <div className="promo-car-visual">
-              <span className="promo-car-emoji">🚘</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. AVAILABLE SEAT RIDES (IMAGE 2 LEFT & IMAGE 1 TILE 4) */}
-      {seatRides.length > 0 && (
-        <section className="section seat-rides-section">
-          <div className="section-header-flex">
+      <div className="home-canvas-body">
+        {/* ====================================================
+            2. POPULAR CARS SECTION
+        ===================================================== */}
+        <section className="home-section popular-cars-section">
+          <div className="section-header-row">
             <div>
-              <span className="section-eyebrow">Shared Travel</span>
-              <h2>Available Seat Rides</h2>
+              <h2 className="section-main-heading">Popular Cars</h2>
+              <p className="section-sub-heading">
+                Choose from our wide range of well-maintained vehicles
+              </p>
             </div>
-            <Link to="/seat-rides" className="view-all-link">
+            <Link to="/cars" className="section-view-all-link">
               View All →
             </Link>
           </div>
 
-          <div className="seat-rides-grid">
-            {seatRides.map((ride) => (
-              <div key={ride._id} className="seat-ride-preview-card glass-card">
-                <div className="route-header-row">
-                  <span className="route-endpoints">
-                    {ride.pickupPoint?.split(",")[0]} ➔ {ride.destination?.split(",")[0]}
-                  </span>
-                  <span className="seats-remaining-pill">
-                    {ride.availableSeats} seats left
-                  </span>
-                </div>
-
-                <div className="ride-meta-row">
-                  <span className="ride-date-time">
-                    📅 {new Date(ride.departureAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} •{" "}
-                    {new Date(ride.departureAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                  <span className="ride-vehicle-name">
-                    🚗 {ride.car?.brand} {ride.car?.model}
-                  </span>
-                </div>
-
-                <div className="ride-action-row">
-                  <div className="ride-price-wrap">
-                    <span className="ride-price-figure">₹{ride.pricePerSeat}</span>
-                    <span className="ride-price-per">/ seat</span>
-                  </div>
-                  <Link to="/seat-rides" className="seat-book-btn">
-                    Book Now
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 6. POPULAR CARS / FLEET (IMAGE 1 TILE 2) */}
-      <section className="popular-cars section">
-        <div className="section-header-flex">
-          <div>
-            <span className="section-eyebrow">{fleet.sectionTag || "Featured Fleet"}</span>
-            <h2>{fleet.title || "Popular cars for your next journey."}</h2>
-          </div>
-          <Link to="/cars" className="view-all-link">
-            {fleet.viewAllText || "View All Cars →"}
-          </Link>
-        </div>
-
-        <div className="popular-cars-grid">
-          {cars.map((car) => (
-            <CarCard key={car._id} car={car} />
-          ))}
-        </div>
-      </section>
-
-      {/* 7. HOW IT WORKS */}
-      <section className="how-it-works section">
-        <div className="section-header-centered">
-          <span className="section-eyebrow">{about.stepsTag || "Simple Process"}</span>
-          <h2>{about.stepsTitle || "Rent a car in three easy steps."}</h2>
-          <p>
-            {about.stepsDescription ||
-              "From choosing your car to starting your journey, we keep the entire rental process simple and transparent."}
-          </p>
-        </div>
-
-        <div className="steps-grid">
-          {(about.steps && about.steps.length > 0
-            ? about.steps
-            : [
-                {
-                  number: "01",
-                  icon: "🚗",
-                  title: "Choose Your Car",
-                  description:
-                    "Browse our available cars and choose the vehicle that fits your journey and budget.",
-                },
-                {
-                  number: "02",
-                  icon: "📅",
-                  title: "Book Your Ride",
-                  description:
-                    "Select your rental dates, review the pricing and confirm your booking securely.",
-                },
-                {
-                  number: "03",
-                  icon: "🛣️",
-                  title: "Enjoy Your Journey",
-                  description:
-                    "Pick up your car and enjoy your trip with transparent rental terms and reliable support.",
-                },
-              ]
-          ).map((step, idx) => (
-            <div key={idx} className="step-card glass-card">
-              <div className="step-number">{step.number || `0${idx + 1}`}</div>
-              <div className="step-icon">{step.icon || "🚗"}</div>
-              <h3>{step.title}</h3>
-              <p>{step.description}</p>
+          {carsLoading ? (
+            <div className="cars-loading-row">
+              <div className="loading-spinner" />
+              <span>Loading fleet...</span>
             </div>
-          ))}
-        </div>
-      </section>
+          ) : cars.length > 0 ? (
+            <div className="popular-cars-grid">
+              {cars.map((car) => (
+                <CarCard key={car._id} car={car} />
+              ))}
+            </div>
+          ) : (
+            <div className="no-cars-card">
+              <p>Vehicles are being prepared. Browse our full catalog.</p>
+              <Link to="/cars" className="browse-cars-btn">Browse Cars</Link>
+            </div>
+          )}
+        </section>
 
-      {/* 8. TESTIMONIALS */}
-      {testimonials.items && testimonials.items.length > 0 && (
-        <section className="testimonials-section section">
-          <div className="section-header-centered">
-            <span className="section-eyebrow">{testimonials.sectionTag || "Renter Stories"}</span>
-            <h2>{testimonials.title || "Loved by thousands of happy travelers."}</h2>
-            <p>
-              {testimonials.description ||
-                "Read what verified renters and regular road-trippers have to say about their RideOn journey."}
+        {/* ====================================================
+            3. OUR SERVICES (4 CLEAN CARDS)
+        ===================================================== */}
+        <section className="home-section services-section">
+          <div className="section-center-heading">
+            <h2 className="section-main-heading">Our Services</h2>
+            <p className="section-sub-heading">
+              Comprehensive travel solutions tailored to your journey needs
             </p>
           </div>
 
-          <div className="testimonials-grid">
-            {testimonials.items.map((item, idx) => (
-              <div key={idx} className="testimonial-card glass-card">
-                <div className="testimonial-rating">
-                  {"★".repeat(item.rating || 5)}
-                </div>
-                <p className="testimonial-comment">“{item.comment}”</p>
-                <div className="testimonial-author">
-                  <div className="author-avatar">{item.initials || "RO"}</div>
-                  <div className="author-info">
-                    <strong>{item.name}</strong>
-                    <span>{item.role}</span>
-                  </div>
-                </div>
+          <div className="services-four-grid">
+            {/* Service 1 */}
+            <Link to="/cars" className="service-card-white">
+              <div className="service-icon-circle">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.2 2 11.8 2 12.3V16c0 .6.4 1 1 1h2" />
+                  <circle cx="7" cy="17" r="2" />
+                  <path d="M9 17h6" />
+                  <circle cx="17" cy="17" r="2" />
+                </svg>
               </div>
-            ))}
+              <h3 className="service-title">Car Rental</h3>
+              <p className="service-desc">
+                Wide range of self-drive and chauffeur-driven cars for personal, family and corporate trips.
+              </p>
+            </Link>
+
+            {/* Service 2 */}
+            <Link to="/cars" className="service-card-white">
+              <div className="service-icon-circle">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="3 11 22 2 13 21 11 13 3 11" />
+                </svg>
+              </div>
+              <h3 className="service-title">Intercity Rides</h3>
+              <p className="service-desc">
+                Comfortable point-to-point travel between Maharashtra cities with fixed, transparent pricing.
+              </p>
+            </Link>
+
+            {/* Service 3 */}
+            <Link to="/seat-rides" className="service-card-white">
+              <div className="service-icon-circle">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </div>
+              <h3 className="service-title">Seat Booking</h3>
+              <p className="service-desc">
+                Share your ride and split travel costs with verified commuters on popular routes.
+              </p>
+            </Link>
+
+            {/* Service 4 */}
+            <Link to="/driver-register" className="service-card-white">
+              <div className="service-icon-circle">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="3" />
+                  <line x1="12" y1="2" x2="12" y2="9" />
+                  <line x1="12" y1="15" x2="12" y2="22" />
+                  <line x1="4.93" y1="4.93" x2="9.88" y2="9.88" />
+                  <line x1="14.12" y1="14.12" x2="19.07" y2="19.07" />
+                </svg>
+              </div>
+              <h3 className="service-title">Driver Partner</h3>
+              <p className="service-desc">
+                Partner with RideOn to earn guaranteed payouts with flexible driving schedules.
+              </p>
+            </Link>
           </div>
         </section>
-      )}
 
-      {/* 9. GALLERY */}
-      {gallery.items && gallery.items.length > 0 && (
-        <section className="gallery-section section">
-          <div className="section-header-centered">
-            <span className="section-eyebrow">{gallery.sectionTag || "Fleet in Action"}</span>
-            <h2>{gallery.title || "Explore the RideOn experience."}</h2>
-          </div>
-
-          <div className="gallery-grid">
-            {gallery.items.map((img, idx) => (
-              <div key={idx} className="gallery-card">
-                <img
-                  src={img.image}
-                  alt={img.title || "RideOn vehicle"}
-                  className="gallery-image"
-                  loading="lazy"
-                />
-                <div className="gallery-overlay">
-                  <span className="gallery-tag">{img.category || "Vehicle"}</span>
-                  <h4>{img.title}</h4>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 10. FINAL CTA SECTION */}
-      <section className="final-cta section">
-        <div className="final-cta-card glass-card">
-          <div className="cta-content">
-            <span className="cta-label">
-              {fleet.ctaTag || "Ready to hit the road?"}
-            </span>
-
-            <h2>{fleet.ctaTitle || "Your next journey starts here."}</h2>
-
-            <p>
-              {fleet.ctaDescription ||
-                "Choose your car, select your dates and get ready for a comfortable journey with RideOn."}
-            </p>
-
-            <div className="cta-actions">
-              <Link to="/cars" className="shiny-button">
-                {fleet.ctaPrimaryText || "Browse Cars →"}
-              </Link>
-
-              <Link to="/register" className="cta-secondary-btn">
-                {fleet.ctaSecondaryText || "Create Account"}
+        {/* ====================================================
+            4. DRIVER PARTNER BANNER (REFERENCE DESIGN)
+        ===================================================== */}
+        <section className="home-section driver-banner-section">
+          <div className="driver-partner-banner">
+            <div className="driver-banner-text">
+              <span className="driver-pill-tag">Driver Network</span>
+              <h3 className="driver-banner-title">
+                Become a RideOn Driver Partner
+              </h3>
+              <p className="driver-banner-desc">
+                Earn up to ₹40,000/month with flexible hours, verified riders, and instant weekly payouts directly to your bank account.
+              </p>
+              <Link to="/driver-register" className="driver-join-btn">
+                Join Now →
               </Link>
             </div>
+            <div className="driver-banner-visual">
+              <div className="driver-graphic-badge">
+                <span className="driver-car-icon">🚘</span>
+                <strong>Verified RideOn Partner</strong>
+                <small>Flexible Schedules • Weekly Payouts</small>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        {/* ====================================================
+            5. WHY CHOOSE RIDEON? (4 TRUST BADGES)
+        ===================================================== */}
+        <section className="home-section why-choose-section">
+          <div className="section-center-heading">
+            <h2 className="section-main-heading">Why Choose RideOn?</h2>
+            <p className="section-sub-heading">
+              Experience seamless mobility built on trust, transparency, and passenger safety
+            </p>
+          </div>
+
+          <div className="why-four-grid">
+            <div className="why-trust-card">
+              <div className="why-icon-box">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+              </div>
+              <h4>Safe &amp; Secure</h4>
+              <p>Verified rides, 24/7 emergency SOS support, and thoroughly inspected vehicles.</p>
+            </div>
+
+            <div className="why-trust-card">
+              <div className="why-icon-box">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                  <line x1="7" y1="7" x2="7.01" y2="7" />
+                </svg>
+              </div>
+              <h4>Affordable Rates</h4>
+              <p>Transparent pricing with zero hidden surcharges and guaranteed best market rates.</p>
+            </div>
+
+            <div className="why-trust-card">
+              <div className="why-icon-box">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+              </div>
+              <h4>Verified Drivers</h4>
+              <p>Experienced chauffeurs thoroughly vetted with identity and commercial background checks.</p>
+            </div>
+
+            <div className="why-trust-card">
+              <div className="why-icon-box">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+                  <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+                </svg>
+              </div>
+              <h4>24/7 Support</h4>
+              <p>Round-the-clock dedicated customer assistance and roadside support whenever you need it.</p>
+            </div>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

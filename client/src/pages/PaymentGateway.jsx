@@ -1,4 +1,4 @@
-import { API_URL } from "../config/api";
+import { API_URL, getAuthHeaders } from "../config/api";
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -16,6 +16,22 @@ export default function PaymentGateway() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const loadRazorpay = () => new Promise((resolve, reject) => {
+    if (window.Razorpay) return resolve();
+    const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    if (existingScript) {
+      existingScript.addEventListener("load", resolve, { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Unable to load the payment gateway.")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Unable to load the payment gateway."));
+    document.body.appendChild(script);
+  });
+
   // Auth guard
   useEffect(() => {
     if (!authLoading && !isLoggedIn) {
@@ -30,7 +46,7 @@ export default function PaymentGateway() {
       try {
         const response = await fetch(
           `${API_URL}/bookings/${bookingId}`,
-          { credentials: "include" }
+          { headers: getAuthHeaders(), credentials: "include" }
         );
         if (!response.ok) throw new Error("Booking not found");
         const data = await response.json();
@@ -52,9 +68,9 @@ export default function PaymentGateway() {
         `${API_URL}/payments/confirm-cash/${bookingId}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders(),
           credentials: "include",
-          body: JSON.stringify({ amountCollected: booking.totalAmount }),
+          body: JSON.stringify({}),
         }
       );
 
@@ -81,25 +97,15 @@ export default function PaymentGateway() {
     setError("");
 
     try {
-      // Check if Razorpay script is loaded
-      if (!window.Razorpay) {
-        // Load Razorpay script
-        const script = document.createElement("script");
-        script.src = "https://checkout.razorpay.com/v1/checkout.js";
-        script.async = true;
-        document.body.appendChild(script);
-      }
-
       // Create order
       const orderResponse = await fetch(
         `${API_URL}/payments/create-order`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders(),
           credentials: "include",
           body: JSON.stringify({
             bookingId,
-            amount: booking.totalAmount,
           }),
         }
       );
@@ -114,10 +120,12 @@ export default function PaymentGateway() {
         throw new Error("Online payment gateway key is not configured. Please choose Cash payment.");
       }
 
+      await loadRazorpay();
+
       // Razorpay options
       const options = {
         key: orderData.keyId,
-        amount: booking.totalAmount * 100, // Amount in paise
+        amount: orderData.amount * 100,
         currency: "INR",
         name: "RideOn",
         description: `Booking #${bookingId}`,
@@ -129,7 +137,7 @@ export default function PaymentGateway() {
               `${API_URL}/payments/verify-payment`,
               {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: getAuthHeaders(),
                 credentials: "include",
                 body: JSON.stringify({
                   bookingId,
@@ -140,9 +148,8 @@ export default function PaymentGateway() {
               }
             );
 
-            if (!verifyResponse.ok) {
-              throw new Error("Payment verification failed");
-            }
+            const verified = await verifyResponse.json();
+            if (!verifyResponse.ok || !verified?.success) throw new Error(verified?.message || "Payment verification failed");
 
             setSuccess("Payment successful! Redirecting to bookings...");
             setTimeout(() => navigate("/my-bookings"), 2000);
@@ -171,6 +178,10 @@ export default function PaymentGateway() {
 
   if (authLoading) {
     return <div className="loading">Loading...</div>;
+  }
+
+  if (error && !booking) {
+    return <div className="loading">{error}</div>;
   }
 
   if (!booking) {

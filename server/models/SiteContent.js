@@ -13,6 +13,13 @@ const siteContentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       required: true,
     },
+    status: { type: String, enum: ["draft", "published", "archived"], default: "draft", index: true },
+    publishedAt: { type: Date, default: null },
+    seo: {
+      title: { type: String, trim: true, maxlength: 160, default: "" },
+      description: { type: String, trim: true, maxlength: 320, default: "" },
+      keywords: { type: [String], default: [] },
+    },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -22,4 +29,3 @@ const siteContentSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("SiteContent", siteContentSchema);
-

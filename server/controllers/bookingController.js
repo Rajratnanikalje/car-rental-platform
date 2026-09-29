@@ -2,6 +2,10 @@ const Booking = require("../models/Booking");
 const Car = require("../models/Car");
 const Trip = require("../models/Trip");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
+const SystemSetting = require("../models/SystemSetting");
+const { getRoute } = require("../services/routeDistance");
+const ServiceArea = require("../models/ServiceArea");
 
 const isValidId = (id) => mongoose.isValidObjectId(id);
 
@@ -9,13 +13,20 @@ const isValidId = (id) => mongoose.isValidObjectId(id);
 // CREATE BOOKING
 // =========================
 const createBooking = async (req, res) => {
+  let reservationCarId = null;
+  let reservationToken = null;
   try {
     const {
       car,
       pickupDate,
       returnDate,
       pickupLocation,
+      destination,
+      pickupTime,
       paymentMethod = "cash",
+      tripType = "DAILY",
+      roundTrip = false,
+      serviceArea,
     } = req.body;
 
     // Validation
@@ -23,7 +34,9 @@ const createBooking = async (req, res) => {
       !car ||
       !pickupDate ||
       !returnDate ||
-      !pickupLocation
+      !pickupLocation ||
+      !destination ||
+      !pickupTime
     ) {
       return res.status(400).json({
         success: false,
@@ -40,7 +53,7 @@ const createBooking = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid payment method" });
     }
 
-    const carData = await Car.findById(car);
+    const carData = await Car.findOne({ _id: car, available: true, verificationStatus: "approved", dataOrigin: { $in: ["admin", "driver"] } });
 
     if (!carData) {
       return res.status(404).json({
@@ -48,14 +61,16 @@ const createBooking = async (req, res) => {
         message: "Car not found",
       });
     }
-
-    // Check car availability
-    if (!carData.available) {
-      return res.status(400).json({
-        success: false,
-        message: "Car is currently not available",
-      });
+    if (!isValidId(serviceArea)) return res.status(422).json({ success: false, message: "Select a valid service area" });
+    const selectedArea = await ServiceArea.findOne({ _id: serviceArea, active: true }).lean();
+    if (!selectedArea || (tripType === "OUTSTATION" ? !selectedArea.supportsOutstation : !selectedArea.supportsLocal)) {
+      return res.status(422).json({ success: false, message: "The selected service area is unavailable for this trip type" });
     }
+    const supportedArea = (carData.serviceAreas || []).some((item) => String(item) === String(selectedArea._id)) || String(carData.location).trim().toLowerCase() === selectedArea.name.toLowerCase();
+    if (!supportedArea) return res.status(422).json({ success: false, message: "This vehicle does not serve the selected pickup area" });
+    if (!["DAILY", "OUTSTATION"].includes(tripType)) return res.status(422).json({ success: false, message: "Invalid trip type" });
+    if (typeof roundTrip !== "boolean") return res.status(422).json({ success: false, message: "Invalid round-trip option" });
+    if (tripType === "OUTSTATION" && Number(carData.pricePerKm) <= 0) return res.status(422).json({ success: false, message: "This vehicle is not enabled for outstation trips" });
 
     // Convert dates
     const startDate = new Date(pickupDate);
@@ -68,6 +83,9 @@ const createBooking = async (req, res) => {
         message: "Invalid pickup or return date",
       });
     }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(pickupTime)) || startDate < new Date(new Date().setHours(0, 0, 0, 0))) {
+      return res.status(400).json({ success: false, message: "Pickup date or time is invalid" });
+    }
 
     if (endDate <= startDate) {
       return res.status(400).json({
@@ -76,9 +94,59 @@ const createBooking = async (req, res) => {
       });
     }
 
+    const totalDays = Math.max(1, Math.ceil((endDate - startDate) / 86400000));
+    let routeSnapshot = { origin: "", destination: "", distanceKm: 0, duration: null, provider: "", calculatedAt: null };
+    if (tripType === "OUTSTATION") {
+      const outbound = await getRoute(pickupLocation.trim(), destination.trim(), startDate);
+      const returnRoute = roundTrip ? await getRoute(destination.trim(), pickupLocation.trim(), endDate) : null;
+      routeSnapshot = {
+        origin: pickupLocation.trim(), destination: destination.trim(),
+        distanceKm: outbound.distanceKm + (returnRoute?.distanceKm || 0),
+        duration: outbound.duration,
+        provider: "google-routes",
+        calculatedAt: new Date(),
+      };
+    }
+
+    const settings = await SystemSetting.findOne({ key: "platform", isActive: true }).lean();
+    if (!settings) return res.status(503).json({ success: false, message: "Booking is temporarily unavailable until platform pricing rules are configured" });
+    const pricePerDay = Number(carData.pricePerDay);
+    const includedKm = Number(carData.includedKm ?? 0);
+    const includedLimitKm = includedKm * totalDays;
+    const pricePerKm = Number(carData.pricePerKm ?? 0);
+    const rentalAmount = totalDays * pricePerDay;
+    const totalKm = routeSnapshot.distanceKm;
+    const extraKm = tripType === "OUTSTATION" ? Math.max(0, totalKm - includedLimitKm) : 0;
+    const extraKmAmount = extraKm * pricePerKm;
+    const grossAmount = rentalAmount + extraKmAmount;
+    const commissionPercentage = Number(settings?.commissionPercentage || 0);
+    const commissionAmount = Math.min(grossAmount, Math.round(grossAmount * commissionPercentage) / 100 + Number(settings?.fixedCommission || 0));
+    const platformFee = Math.min(Math.max(0, grossAmount - commissionAmount), Number(settings?.platformFee || 0));
+    const taxAmount = Math.round((grossAmount + platformFee) * Number(settings?.taxPercentage || 0)) / 100;
+    const totalAmount = grossAmount + platformFee + taxAmount;
+    const driverEarnings = Math.max(0, grossAmount - commissionAmount - platformFee);
+
     // =========================
     // CHECK DATE CONFLICT
     // =========================
+    // Acquire a short MongoDB-backed per-vehicle reservation lock before the
+    // overlap query. The atomic compare-and-set works across server processes.
+    reservationCarId = carData._id;
+    reservationToken = crypto.randomUUID();
+    const reservedCar = await Car.findOneAndUpdate({
+      _id: carData._id,
+      available: true,
+      verificationStatus: "approved",
+      dataOrigin: { $in: ["admin", "driver"] },
+      $or: [{ bookingLockUntil: null }, { bookingLockUntil: { $lt: new Date() } }],
+    }, { $set: { bookingLockToken: reservationToken, bookingLockUntil: new Date(Date.now() + 30000) } }, { new: true });
+    if (!reservedCar) return res.status(409).json({ success: false, message: "Vehicle is being reserved or is no longer available. Please retry." });
+
+    const releaseReservation = () => Car.updateOne(
+      { _id: reservationCarId, bookingLockToken: reservationToken },
+      { $set: { bookingLockToken: null, bookingLockUntil: null } }
+    );
+
     const existingBooking = await Booking.findOne({
       car: carData._id,
       bookingStatus: {
@@ -93,6 +161,8 @@ const createBooking = async (req, res) => {
     });
 
     if (existingBooking) {
+      await releaseReservation();
+      reservationToken = null;
       return res.status(409).json({
         success: false,
         message: "Car is already booked for the selected dates",
@@ -100,45 +170,22 @@ const createBooking = async (req, res) => {
     }
 
     // Calculate total days
-    const difference =
-      endDate.getTime() - startDate.getTime();
-
-    const totalDays = Math.ceil(
-      difference / (1000 * 60 * 60 * 24)
-    );
-
-    // Daily rental
-    const pricePerDay = carData.pricePerDay;
-
-    const rentalAmount =
-      totalDays * pricePerDay;
-
-    // =========================
-    // KM PRICING
-    // =========================
-    const includedKm =
-      carData.includedKm ?? 300;
-
-    const pricePerKm =
-      carData.pricePerKm ?? 0;
-
-    // Actual KM will be updated later
-    const totalKm = 0;
-    const extraKm = 0;
-    const extraKmAmount = 0;
-
-    // Final total
-    const totalAmount =
-      rentalAmount + extraKmAmount;
 
     // Create booking
     const booking = await Booking.create({
       user: req.user.id,
       car: carData._id,
+      tripType,
+      serviceArea: selectedArea._id,
+      roundTrip: tripType === "OUTSTATION" && Boolean(roundTrip),
+      routeSnapshot,
+      financialSnapshot: { grossAmount, commissionPercentage, fixedCommission: Number(settings?.fixedCommission || 0), commissionAmount, platformFee, taxPercentage: Number(settings?.taxPercentage || 0), taxAmount, driverEarnings, refundAmount: 0, finalPayout: driverEarnings },
 
       pickupDate: startDate,
       returnDate: endDate,
       pickupLocation,
+      destination,
+      pickupTime,
 
       totalDays,
       pricePerDay,
@@ -155,12 +202,18 @@ const createBooking = async (req, res) => {
       paymentMethod,
     });
 
+    await releaseReservation();
+    reservationToken = null;
+
     res.status(201).json({
       success: true,
       message: "Booking created successfully",
       booking,
     });
   } catch (error) {
+    if (reservationCarId && reservationToken) {
+      await Car.updateOne({ _id: reservationCarId, bookingLockToken: reservationToken }, { $set: { bookingLockToken: null, bookingLockUntil: null } }).catch(() => {});
+    }
     console.error("Create Booking Error:", error);
 
     res.status(500).json({
@@ -180,7 +233,7 @@ const getMyBookings = async (req, res) => {
     })
       .populate("car")
       .populate({ path: "trip", select: "status arrivedAt actualDistanceKm" })
-      .populate({ path: "driver", select: "mobile status" })
+      .populate({ path: "driver", select: "mobile status user", populate: { path: "user", select: "name phone" } })
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -210,7 +263,10 @@ const getBookingById = async (req, res) => {
     const booking = await Booking.findOne({
       _id: req.params.id,
       user: req.user.id,
-    }).populate("car");
+    })
+      .populate("car")
+      .populate({ path: "trip", select: "status arrivedAt actualDistanceKm" })
+      .populate({ path: "driver", select: "mobile status user", populate: { path: "user", select: "name phone" } });
 
     if (!booking) {
       return res.status(404).json({

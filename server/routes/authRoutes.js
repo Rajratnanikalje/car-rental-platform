@@ -9,16 +9,18 @@ const {
 } = require("../controllers/authController");
 
 const { protect } = require("../middleware/authMiddleware");
+const rateLimit = require("express-rate-limit");
 
 const router = express.Router();
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: process.env.NODE_ENV === "production" ? 10 : 100, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many authentication attempts. Please try again later." } });
 
 // =========================
 // PUBLIC ROUTES
 // =========================
 
-router.post("/register", registerUser);
+router.post("/register", authLimiter, registerUser);
 
-router.post("/login", loginUser);
+router.post("/login", authLimiter, loginUser);
 
 // =========================
 // PROTECTED ROUTES

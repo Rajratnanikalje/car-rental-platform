@@ -6,11 +6,14 @@ import "./AdminPages.css";
 
 export default function AdminVehicles() {
   const [vehicles, setVehicles] = useState([]);
+  const [serviceAreas, setServiceAreas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [cleanupPlan, setCleanupPlan] = useState(null);
+  const [cleanupLoading, setCleanupLoading] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -21,19 +24,21 @@ export default function AdminVehicles() {
     transmission: "Automatic",
     fuelType: "Petrol",
     seats: 5,
-    pricePerDay: 2500,
-    pricePerKm: 15,
+    pricePerDay: "",
+    pricePerKm: "",
     includedKm: 300,
-    location: "Mumbai",
+    location: "",
+    serviceAreas: [],
     image: "",
     description: "",
+    registrationNumber: "",
   });
 
   const fetchVehicles = async () => {
     try {
       setTimeout(() => setLoading(true), 0);
       setError("");
-      const response = await fetch(`${API_URL}/cars`);
+      const response = await fetch(`${API_URL}/cars/admin/all`, { credentials: "include" });
       const data = await response.json();
       if (response.ok && data.success) {
         setVehicles(Array.isArray(data.cars) ? data.cars : []);
@@ -50,6 +55,7 @@ export default function AdminVehicles() {
 
   useEffect(() => {
     const timer = window.setTimeout(fetchVehicles, 0);
+    fetch(`${API_URL}/service-areas`).then((response) => response.json()).then((data) => setServiceAreas(data.areas || [])).catch(() => setServiceAreas([]));
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -74,12 +80,14 @@ export default function AdminVehicles() {
       transmission: "Automatic",
       fuelType: "Petrol",
       seats: 5,
-      pricePerDay: 2500,
-      pricePerKm: 15,
+      pricePerDay: "",
+      pricePerKm: "",
       includedKm: 300,
-      location: "Mumbai",
+      location: "",
+      serviceAreas: [],
       image: "",
       description: "",
+      registrationNumber: "",
     });
   };
 
@@ -99,12 +107,14 @@ export default function AdminVehicles() {
       transmission: car.transmission || "Automatic",
       fuelType: car.fuelType || "Petrol",
       seats: car.seats || 5,
-      pricePerDay: car.pricePerDay || 2500,
-      pricePerKm: car.pricePerKm || 15,
+      pricePerDay: car.pricePerDay ?? "",
+      pricePerKm: car.pricePerKm ?? "",
       includedKm: car.includedKm || 300,
-      location: car.location || "Mumbai",
+      location: car.location || "",
+      serviceAreas: (car.serviceAreas || []).map((area) => String(area?._id || area)),
       image: car.image || "",
       description: car.description || "",
+      registrationNumber: car.registrationNumber || "",
     });
     setShowAddModal(true);
   };
@@ -164,6 +174,35 @@ export default function AdminVehicles() {
     }
   };
 
+  const updateVerification = async (vehicleId, verificationStatus) => {
+    const label = verificationStatus === "approved" ? "approve" : "reject";
+    if (!window.confirm(`Are you sure you want to ${label} this vehicle? This action is recorded in the audit log.`)) return;
+    const verificationReviewNote = verificationStatus === "rejected" ? window.prompt("Reason for rejection (shown to the driver):") || "" : "";
+    try {
+      const response = await fetch(`${API_URL}/cars/${vehicleId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ verificationStatus, verificationReviewNote }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data?.message || "Failed to update verification");
+      fetchVehicles();
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  const adoptLegacyVehicle = async (car) => {
+    if (!window.confirm(`Confirm that “${car.name}” is a real company vehicle and its ownership/details were checked. This enables eligibility for public listing after approval and availability are confirmed.`)) return;
+    try {
+      const response = await fetch(`${API_URL}/cars/${car._id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ dataOrigin: "admin" }) });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || "Could not verify legacy vehicle");
+      fetchVehicles();
+    } catch (err) { alert(`Error: ${err.message}`); }
+  };
+
   const handleDelete = async (vehicleId, vehicleName) => {
     if (!window.confirm(`Are you sure you want to remove "${vehicleName}" from the fleet?`)) {
       return;
@@ -187,6 +226,34 @@ export default function AdminVehicles() {
     }
   };
 
+  const previewDemoCleanup = async () => {
+    setCleanupLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/admin/demo-cleanup/preview`, { credentials: "include" });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || "Could not preview demo records");
+      setCleanupPlan(data.plan);
+    } catch (err) { alert(`Error: ${err.message}`); }
+    finally { setCleanupLoading(false); }
+  };
+
+  const deleteDemoCleanup = async () => {
+    const confirmation = window.prompt('Only explicitly identified demo/test records will be deleted. Real production records are preserved. Type "DELETE DEMO DATA" to continue.');
+    if (confirmation !== "DELETE DEMO DATA") return;
+    setCleanupLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/admin/demo-cleanup/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ confirmation }) });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || "Demo data cleanup failed");
+      setCleanupPlan(data.plan);
+      alert("Explicitly tagged demo records were deleted. Review the remaining conflicts below.");
+      fetchVehicles();
+    } catch (err) { alert(`Error: ${err.message}`); }
+    finally { setCleanupLoading(false); }
+  };
+
+  const cleanupLabels = { demoUsers: "Demo users", demoDrivers: "Demo drivers", demoVehicles: "Demo vehicles", demoBookings: "Demo bookings", demoTrips: "Demo trips", demoPayments: "Demo payments", demoLedgerEntries: "Demo ledger entries", demoRides: "Demo scheduled rides", demoSeatBookings: "Demo seat bookings", demoAuditRecords: "Demo audit records", manualReview: "Possible seed matches (kept)" };
+
   return (
     <div className="admin-page">
       <div className="admin-page-header">
@@ -206,6 +273,18 @@ export default function AdminVehicles() {
           {error}
         </div>
       )}
+
+      <section className="admin-card" style={{ marginBottom: 20, border: "1px solid rgba(239,68,68,.45)" }}>
+        <div className="admin-card-header"><div><h2>Demo / Test Data Cleanup</h2><p>Only records explicitly identified as demo/test data will be deleted. Real production records will not be removed.</p></div><button className="admin-btn admin-btn-secondary" onClick={previewDemoCleanup} disabled={cleanupLoading}>{cleanupLoading ? "Working…" : "Preview Demo Data"}</button></div>
+        {cleanupPlan && <div>
+          <p>Preview generated: {new Date(cleanupPlan.generatedAt).toLocaleString()}</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: 12 }}>{Object.entries(cleanupLabels).map(([key, label]) => <div className="admin-stat-card" key={key}><span>{label}</span><strong>{cleanupPlan.counts[key] || 0}</strong></div>)}</div>
+          <details style={{ marginTop: 12 }}><summary>Review candidate record IDs and details</summary>{Object.entries(cleanupPlan.groups).map(([key, records]) => <div key={key}><h4>{cleanupLabels[key]} ({records.length})</h4>{records.length ? <ul>{records.map((record) => <li key={record.id}><code>{record.id}</code> — {record.label}</li>)}</ul> : <p>None</p>}</div>)}</details>
+          <details style={{ marginTop: 12 }}><summary>Records preserved for manual review ({cleanupPlan.conflicts.length + (cleanupPlan.groups.manualReview?.length || 0)})</summary>{cleanupPlan.groups.manualReview?.length > 0 && <ul>{cleanupPlan.groups.manualReview.map((item) => <li key={item.id}><code>{item.id}</code> — {item.label}. {item.reason}</li>)}</ul>}{cleanupPlan.conflicts.length > 0 && <ul>{cleanupPlan.conflicts.map((item, index) => <li key={`${item.id}-${index}`}>{item.id}: {item.reason}</li>)}</ul>}{cleanupPlan.conflicts.length === 0 && !cleanupPlan.groups.manualReview?.length && <p>No cross-links need manual review.</p>}</details>
+          <p role="note"><strong>Warning:</strong> Review the preview and preserved-record list before deletion. Legacy records without explicit demo provenance are kept.</p>
+          <button className="admin-btn admin-btn-danger" onClick={deleteDemoCleanup} disabled={cleanupLoading}>Delete Demo/Test Data</button>
+        </div>}
+      </section>
 
       <div className="admin-card">
         <div className="admin-card-header">
@@ -231,11 +310,16 @@ export default function AdminVehicles() {
               <thead>
                 <tr>
                   <th>Vehicle</th>
+                  <th>Owner / Driver</th>
+                  <th>Record source</th>
+                  <th>Registration</th>
+                  <th>Submitted</th>
                   <th>Category</th>
                   <th>Seats</th>
                   <th>Price / Day</th>
                   <th>Extra KM Rate</th>
                   <th>Included KM</th>
+                  <th>Verification</th>
                   <th>Status</th>
                   <th style={{ textAlign: "right" }}>Actions</th>
                 </tr>
@@ -260,15 +344,25 @@ export default function AdminVehicles() {
                         </div>
                       </div>
                     </td>
+                    <td>{car.driver?.user?.name || (car.ownershipType === "company" ? "Company fleet" : "Driver account")}</td>
+                    <td>{car.dataOrigin || "legacy"}</td>
+                    <td>{car.registrationNumber || "—"}</td>
+                    <td>{car.createdAt ? new Date(car.createdAt).toLocaleDateString() : "—"}</td>
                     <td>{car.category || "Sedan"}</td>
                     <td>{car.seats || 5} seats</td>
                     <td><strong>₹{Number(car.pricePerDay || 0).toLocaleString("en-IN")}</strong></td>
                     <td>₹{car.pricePerKm || 0}/km</td>
                     <td>{car.includedKm || 300} km</td>
                     <td>
+                      <span className={`admin-badge ${car.verificationStatus === "approved" ? "badge-green" : car.verificationStatus === "rejected" ? "badge-red" : "badge-yellow"}`}>
+                        {car.verificationStatus || "approved"}
+                      </span>
+                    </td>
+                    <td>
                       <span className={`admin-badge ${car.available !== false ? "badge-green" : "badge-red"}`}>
                         {car.available !== false ? "● Available" : "○ Unavailable"}
                       </span>
+                      {car.documents?.length > 0 && <div>{car.documents.map((doc, index) => <a key={`${doc.documentType}-${index}`} href={doc.documentUrl} target="_blank" rel="noreferrer" style={{ display: "block" }}>{doc.documentType}: {doc.status}</a>)}</div>}
                     </td>
                     <td>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "8px" }}>
@@ -278,12 +372,23 @@ export default function AdminVehicles() {
                         >
                           ✏️ Edit
                         </button>
+                        {car.dataOrigin === "legacy" && !car.driver && <button className="admin-btn admin-btn-sm admin-btn-secondary" onClick={() => adoptLegacyVehicle(car)}>Verify record</button>}
                         <button
                           className={`admin-btn admin-btn-sm ${car.available !== false ? "admin-btn-secondary" : "admin-btn-success"}`}
                           onClick={() => toggleAvailability(car._id, car.available !== false)}
                         >
                           {car.available !== false ? "Mark Unavailable" : "Mark Available"}
                         </button>
+                        {car.verificationStatus !== "approved" && (
+                          <button className="admin-btn admin-btn-sm admin-btn-success" onClick={() => updateVerification(car._id, "approved")}>
+                            Approve
+                          </button>
+                        )}
+                        {car.verificationStatus === "pending" && (
+                          <button className="admin-btn admin-btn-sm admin-btn-danger" onClick={() => updateVerification(car._id, "rejected")}>
+                            Reject
+                          </button>
+                        )}
                         <button
                           className="admin-btn admin-btn-sm admin-btn-danger"
                           onClick={() => handleDelete(car._id, car.name)}
@@ -321,6 +426,20 @@ export default function AdminVehicles() {
                   <div className="admin-form-group">
                     <label>Model</label>
                     <input type="text" name="model" placeholder="e.g. ZX 2024" value={form.model} onChange={handleChange} />
+                  </div>
+                  <div className="admin-form-group">
+                    <label>Registration Number</label>
+                    <input type="text" name="registrationNumber" value={form.registrationNumber} onChange={handleChange} />
+                  </div>
+                  <div className="admin-form-group">
+                    <label>Primary Location *</label>
+                    <input type="text" name="location" value={form.location} onChange={handleChange} required />
+                  </div>
+                  <div className="admin-form-group">
+                    <label>Supported Service Areas</label>
+                    <select multiple name="serviceAreas" value={(form.serviceAreas || []).map(String)} onChange={(e) => setForm((prev) => ({ ...prev, serviceAreas: Array.from(e.target.selectedOptions, (option) => option.value) }))}>
+                      {serviceAreas.map((area) => <option key={area._id} value={area._id}>{area.name}</option>)}
+                    </select>
                   </div>
                   <div className="admin-form-group">
                     <label>Category</label>

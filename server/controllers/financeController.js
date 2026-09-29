@@ -26,37 +26,47 @@ const calculateLedgerAmounts = (grossAmount, settings) => {
   return { commissionAmount, platformFee, driverEarnings: grossAmount - commissionAmount - platformFee };
 };
 
-const createFinancialRecords = async ({ booking, driver }) => {
-  const settings = await getActiveSettings();
-  const existing = await DriverLedger.findOne({ booking: booking._id });
+const createFinancialRecords = async ({ booking, driver, session = null }) => {
+  const settings = booking.financialSnapshot?.grossAmount > 0 ? null : await getActiveSettings();
+  let ledgerQuery = DriverLedger.findOne({ booking: booking._id });
+  if (session) ledgerQuery = ledgerQuery.session(session);
+  const existing = await ledgerQuery;
   if (existing) return existing;
-  const amounts = calculateLedgerAmounts(booking.totalAmount, settings);
+  const grossAmount = booking.financialSnapshot?.grossAmount || booking.totalAmount;
+  const amounts = booking.financialSnapshot?.grossAmount > 0
+    ? { commissionAmount: booking.financialSnapshot.commissionAmount, platformFee: booking.financialSnapshot.platformFee || 0, driverEarnings: booking.financialSnapshot.driverEarnings }
+    : calculateLedgerAmounts(grossAmount, settings);
   const isCash = booking.paymentMethod === "cash";
 
   // Check if Payment already exists for this booking to prevent duplicate key error
-  let payment = await Payment.findOne({ booking: booking._id });
+  let paymentQuery = Payment.findOne({ booking: booking._id });
+  if (session) paymentQuery = paymentQuery.session(session);
+  let payment = await paymentQuery;
   if (!payment) {
-    payment = await Payment.create({
+    const paymentValues = {
       booking: booking._id,
       amount: booking.totalAmount,
       method: booking.paymentMethod,
       status: isCash ? "pending" : "received",
       receivedAt: isCash ? null : new Date(),
-    });
+    };
+    [payment] = await Payment.create([paymentValues], session ? { session } : {});
   } else if (payment.amount !== booking.totalAmount) {
     payment.amount = booking.totalAmount;
-    await payment.save();
+    await payment.save(session ? { session } : undefined);
   }
 
-  return DriverLedger.create({
+  const ledgerValues = {
     booking: booking._id,
     driver,
-    grossAmount: booking.totalAmount,
+    grossAmount,
     ...amounts,
     paymentMethod: booking.paymentMethod,
     amountPayableToRideOn: isCash ? amounts.commissionAmount + amounts.platformFee : 0,
     amountPayableToDriver: isCash ? 0 : amounts.driverEarnings,
-  });
+  };
+  const [createdLedger] = await DriverLedger.create([ledgerValues], session ? { session } : {});
+  return createdLedger;
 };
 
 const getSettings = async (req, res) => {
@@ -70,14 +80,14 @@ const getSettings = async (req, res) => {
 
 const updateSettings = async (req, res) => {
   try {
-    const { commissionPercentage, fixedCommission = 0, platformFee = 0, isActive = true } = req.body;
-    if (!Number.isFinite(Number(commissionPercentage)) || Number(commissionPercentage) < 0 || Number(commissionPercentage) > 100 || !Number.isFinite(Number(fixedCommission)) || Number(fixedCommission) < 0 || !Number.isFinite(Number(platformFee)) || Number(platformFee) < 0) {
+    const { commissionPercentage, fixedCommission = 0, platformFee = 0, taxPercentage = 0, isActive = true } = req.body;
+    if (!Number.isFinite(Number(commissionPercentage)) || Number(commissionPercentage) < 0 || Number(commissionPercentage) > 100 || !Number.isFinite(Number(fixedCommission)) || Number(fixedCommission) < 0 || !Number.isFinite(Number(platformFee)) || Number(platformFee) < 0 || !Number.isFinite(Number(taxPercentage)) || Number(taxPercentage) < 0 || Number(taxPercentage) > 100) {
       return res.status(400).json({ success: false, message: "Provide valid non-negative commission and fee values" });
     }
     const previous = await SystemSetting.findOne({ key: "platform" }).lean();
     const settings = await SystemSetting.findOneAndUpdate(
       { key: "platform" },
-      { commissionPercentage: Number(commissionPercentage), fixedCommission: Number(fixedCommission), platformFee: Number(platformFee), isActive: Boolean(isActive) },
+      { commissionPercentage: Number(commissionPercentage), fixedCommission: Number(fixedCommission), platformFee: Number(platformFee), taxPercentage: Number(taxPercentage), isActive: Boolean(isActive) },
       { new: true, upsert: true, runValidators: true }
     );
     await AuditLog.create({
@@ -85,8 +95,8 @@ const updateSettings = async (req, res) => {
       action: "FINANCIAL_SETTINGS_UPDATED",
       entityType: "SystemSetting",
       entityId: settings._id,
-      oldValue: previous ? { commissionPercentage: previous.commissionPercentage, fixedCommission: previous.fixedCommission, platformFee: previous.platformFee, isActive: previous.isActive } : null,
-      newValue: { commissionPercentage: settings.commissionPercentage, fixedCommission: settings.fixedCommission, platformFee: settings.platformFee, isActive: settings.isActive },
+      oldValue: previous ? { commissionPercentage: previous.commissionPercentage, fixedCommission: previous.fixedCommission, platformFee: previous.platformFee, taxPercentage: previous.taxPercentage, isActive: previous.isActive } : null,
+      newValue: { commissionPercentage: settings.commissionPercentage, fixedCommission: settings.fixedCommission, platformFee: settings.platformFee, taxPercentage: settings.taxPercentage, isActive: settings.isActive },
     });
     return res.json({ success: true, message: "Financial settings updated", settings });
   } catch (error) {
@@ -141,9 +151,13 @@ const getMyDriverLedger = async (req, res) => {
     const entries = await DriverLedger.find({ driver: req.driver._id }).populate("booking", "totalAmount paymentStatus paymentMethod bookingStatus").sort({ createdAt: -1 });
     const totals = entries.reduce((sum, entry) => ({
       grossAmount: sum.grossAmount + entry.grossAmount,
-      commissionPayable: sum.commissionPayable + entry.amountPayableToRideOn,
+      commissionPayable: sum.commissionPayable + entry.commissionAmount + entry.platformFee,
+      netEarnings: sum.netEarnings + entry.driverEarnings,
       driverPayout: sum.driverPayout + entry.amountPayableToDriver,
-    }), { grossAmount: 0, commissionPayable: 0, driverPayout: 0 });
+      pendingPayout: sum.pendingPayout + (entry.settlementStatus === "paid" ? 0 : entry.amountPayableToDriver),
+      paidPayout: sum.paidPayout + (entry.settlementStatus === "paid" ? entry.amountPayableToDriver : 0),
+      refunded: sum.refunded + entry.refundsAmount,
+    }), { grossAmount: 0, commissionPayable: 0, netEarnings: 0, driverPayout: 0, pendingPayout: 0, paidPayout: 0, refunded: 0 });
     return res.json({ success: true, entries, totals });
   } catch (error) {
     return res.status(500).json({ success: false, message: "Server error" });
@@ -172,6 +186,7 @@ const updateSettlementStatus = async (req, res) => {
     const ledger = await DriverLedger.findById(req.params.id);
     if (!ledger) return res.status(404).json({ success: false, message: "Ledger entry not found" });
     const previousStatus = ledger.settlementStatus;
+    if (previousStatus === "paid") return res.status(409).json({ success: false, message: "A paid payout is immutable" });
     ledger.settlementStatus = status;
     if (status === "paid") ledger.settledAt = new Date();
     await ledger.save();
@@ -184,16 +199,25 @@ const updateSettlementStatus = async (req, res) => {
 
 const getPlatformStats = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
+    const totalUsers = await User.countDocuments({ role: { $in: ["customer", "driver", "admin"] } });
+    const totalCustomers = await User.countDocuments({ role: "customer" });
     const totalDrivers = await Driver.countDocuments({ status: "approved" });
-    const totalVehicles = await Car.countDocuments();
-    const totalBookings = await Booking.countDocuments();
+    const pendingDrivers = await Driver.countDocuments({ status: "pending" });
+    const underReviewDrivers = await Driver.countDocuments({ status: "under_review" });
+    const rejectedDrivers = await Driver.countDocuments({ status: "rejected" });
+    const realVehicleFilter = { dataOrigin: { $in: ["admin", "driver", "legacy"] } };
+    const totalVehicles = await Car.countDocuments(realVehicleFilter);
+    const approvedVehicles = await Car.countDocuments({ ...realVehicleFilter, verificationStatus: "approved" });
+    const pendingVehicles = await Car.countDocuments({ ...realVehicleFilter, verificationStatus: "pending" });
+    const availableVehicles = await Car.countDocuments({ ...realVehicleFilter, verificationStatus: "approved", available: true });
+    const totalBookings = await Booking.countDocuments({ dataOrigin: { $ne: "demo" } });
     const activeTrips = await Trip.countDocuments({
       status: { $in: ["driver_assigned", "driver_arrived", "trip_started", "trip_in_progress"] },
     });
     const completedTrips = await Trip.countDocuments({ status: "trip_completed" });
     const cancelledTrips = await Trip.countDocuments({ status: "cancelled" });
     const pendingSettlements = await DriverLedger.countDocuments({ settlementStatus: "pending" });
+    const riskAlerts = await Trip.countDocuments({ fraudReviewStatus: { $in: ["flagged", "under_review"] } });
 
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
@@ -217,27 +241,47 @@ const getPlatformStats = async (req, res) => {
 
     const commissionAggr = await DriverLedger.aggregate([
       {
+        $match: { dataOrigin: { $ne: "demo" } },
+      },
+      {
         $group: {
           _id: null,
-          totalCommission: { $sum: "$amountPayableToRideOn" },
+          totalCommission: { $sum: { $add: ["$commissionAmount", "$platformFee"] } },
+          totalBookingValue: { $sum: "$grossAmount" },
+          driverPayoutsPaid: { $sum: { $cond: [{ $eq: ["$settlementStatus", "paid"] }, "$amountPayableToDriver", 0] } },
+          driverPayoutsPending: { $sum: { $cond: [{ $ne: ["$settlementStatus", "paid"] }, "$amountPayableToDriver", 0] } },
+          totalRefunds: { $sum: "$refundsAmount" },
         },
       },
     ]);
     const totalCommission = commissionAggr.length > 0 ? commissionAggr[0].totalCommission : 0;
+    const finances = commissionAggr[0] || { totalBookingValue: 0, driverPayoutsPaid: 0, driverPayoutsPending: 0, totalRefunds: 0 };
 
     return res.json({
       success: true,
       stats: {
         totalUsers,
+        totalCustomers,
         totalDrivers,
+        pendingDrivers,
+        underReviewDrivers,
+        rejectedDrivers,
         totalVehicles,
+        approvedVehicles,
+        pendingVehicles,
+        availableVehicles,
         totalBookings,
         activeTrips,
         completedTrips,
         cancelledTrips,
         pendingSettlements,
+        riskAlerts,
         todayRevenue,
         totalCommission,
+        totalBookingValue: finances.totalBookingValue,
+        driverPayoutsPaid: finances.driverPayoutsPaid,
+        driverPayoutsPending: finances.driverPayoutsPending,
+        totalRefunds: finances.totalRefunds,
       },
     });
   } catch (error) {

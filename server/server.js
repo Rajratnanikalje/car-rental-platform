@@ -19,8 +19,11 @@ const financeRoutes = require("./routes/financeRoutes");
 const seatRideRoutes = require("./routes/seatRideRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const cmsRoutes = require("./routes/cmsRoutes");
+const demoCleanupRoutes = require("./routes/demoCleanupRoutes");
+const serviceAreaRoutes = require("./routes/serviceAreaRoutes");
 
 const app = express();
+app.set("trust proxy", 1);
 
 const PORT = process.env.PORT || 5000;
 
@@ -28,8 +31,12 @@ const PORT = process.env.PORT || 5000;
 // DATABASE
 // =========================
 
-connectDB().then(() => {
-  seedDefaultData();
+connectDB().then(async () => {
+  // Never seed demo accounts, vehicles, rides, or pricing on a normal start.
+  // Local demos must opt in explicitly; production data is created by admins.
+  if (process.env.NODE_ENV !== "production" && process.env.SEED_DEMO_DATA === "true") {
+    await seedDefaultData();
+  }
 });
 
 // =========================
@@ -55,20 +62,16 @@ app.use(
       // Allow requests with no origin (e.g. mobile apps, server-to-server)
       if (!origin) return callback(null, true);
 
-      const isAllowed =
-        allowedOrigins.some((allowed) => allowed && origin.startsWith(allowed.replace(/\/+$/, ""))) ||
-        origin.endsWith(".onrender.com") ||
-        origin.endsWith(".vercel.app") ||
-        origin.endsWith(".netlify.app") ||
-        origin.includes("localhost") ||
-        origin.includes("127.0.0.1");
+      const normalizedOrigin = origin.replace(/\/+$/, "");
+      const isAllowed = allowedOrigins.some(
+        (allowed) => allowed.replace(/\/+$/, "") === normalizedOrigin
+      );
 
       if (isAllowed) {
         return callback(null, true);
       }
 
-      // Default allow with origin reflection in production so deployed client is never blocked
-      return callback(null, true);
+      return callback(new Error("Origin is not allowed by CORS"));
     },
     credentials: true,
   })
@@ -78,8 +81,8 @@ app.use(
 // BODY PARSER
 // =========================
 
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "100kb" }));
 
 // =========================
 // COOKIE PARSER
@@ -129,6 +132,18 @@ app.use("/api/seat-rides", seatRideRoutes);
 app.use("/api/payments", paymentRoutes);
 
 app.use("/api/cms", cmsRoutes);
+app.use("/api/service-areas", serviceAreaRoutes);
+app.use("/api/admin/demo-cleanup", demoCleanupRoutes);
+
+// Keep unexpected errors consistent with the API contract and do not leak
+// implementation details to callers.
+app.use((error, req, res, next) => {
+  if (error?.message === "Origin is not allowed by CORS") {
+    return res.status(403).json({ success: false, message: "Origin is not allowed" });
+  }
+  console.error("Unhandled API error:", error);
+  return res.status(error.statusCode || 500).json({ success: false, message: "Server error" });
+});
 
 // =========================
 // HEALTH CHECK

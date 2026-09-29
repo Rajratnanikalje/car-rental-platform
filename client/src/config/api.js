@@ -21,38 +21,17 @@ export const API_URL = (() => {
   return "https://car-rental-platform-fcsu.onrender.com/api";
 })();
 
-/**
- * Returns headers with Authorization Bearer token if stored in localStorage.
- */
+/** Cookie sessions are sent with credentials: include; never persist access tokens in JS storage. */
 export const getAuthHeaders = (extraHeaders = {}) => {
-  const headers = {
+  return {
     "Content-Type": "application/json",
     ...extraHeaders,
   };
-
-  try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-  } catch (err) {
-    console.warn("Could not read auth token from localStorage", err);
-  }
-
-  return headers;
 };
 
-/**
- * Save auth token to localStorage
- */
-export const setAuthToken = (token) => {
+/** Remove tokens persisted by older builds; current sessions use HttpOnly cookies. */
+export const clearLegacyAuthToken = () => {
   try {
-    if (token) {
-      localStorage.setItem("token", token);
-    } else {
-      localStorage.removeItem("token");
-    }
-  } catch (err) {
-    console.warn("Could not set auth token in localStorage", err);
-  }
+    localStorage.removeItem("token");
+  } catch { /* Storage can be unavailable in restricted browsers. */ }
 };

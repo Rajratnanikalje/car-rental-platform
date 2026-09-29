@@ -1,12 +1,16 @@
 const jwt = require("jsonwebtoken");
 const Driver = require("../models/Driver");
+const User = require("../models/User");
+
+const allowedOrigins = [process.env.CLIENT_URL, "http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"].filter(Boolean).map((origin) => origin.replace(/\/+$/, ""));
 
 // =========================
 // PROTECT ROUTES
 // =========================
-const protect = (req, res, next) => {
+const protect = async (req, res, next) => {
   try {
     let token = req.cookies?.token;
+    const cookieSession = Boolean(token);
 
     if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
       token = req.headers.authorization.split(" ")[1];
@@ -19,12 +23,24 @@ const protect = (req, res, next) => {
       });
     }
 
+    if (cookieSession && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+      const origin = req.get("origin")?.replace(/\/+$/, "");
+      if (!origin || !allowedOrigins.includes(origin)) return res.status(403).json({ success: false, message: "Request origin is not allowed" });
+    }
+
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET
     );
 
-    req.user = decoded;
+    // A token is an identity credential, not a permanent authorization grant.
+    // Resolve the account on every protected request so deleted accounts and role
+    // changes take effect immediately instead of waiting for token expiry.
+    const user = await User.findById(decoded.id).select("_id role").lean();
+    if (!user) {
+      return res.status(401).json({ success: false, message: "Account no longer exists" });
+    }
+    req.user = { id: user._id.toString(), role: user.role };
 
     next();
   } catch (error) {

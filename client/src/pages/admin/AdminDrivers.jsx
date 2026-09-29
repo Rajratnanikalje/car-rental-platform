@@ -46,6 +46,10 @@ export default function AdminDrivers() {
       alert("Please provide a review note explaining the reason for rejection/suspension.");
       return;
     }
+    const action = newStatus.replace("_", " ");
+    if (!window.confirm(`Confirm driver status change to ${action}? This action will be recorded in the audit log.`)) {
+      return;
+    }
 
     try {
       setUpdating(true);
@@ -274,6 +278,22 @@ export default function AdminDrivers() {
                   onClick={() => handleUpdateStatus(selectedDriver._id, "rejected")}
                 >
                   Reject Driver
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-danger"
+                  disabled={updating}
+                  onClick={() => handleUpdateStatus(selectedDriver._id, "suspended")}
+                >
+                  Suspend
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-danger"
+                  disabled={updating}
+                  onClick={() => handleUpdateStatus(selectedDriver._id, "blocked")}
+                >
+                  Block
                 </button>
                 <button
                   type="button"

@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import "./AdminLogin.css";
 
-import { API_URL, setAuthToken } from "../../config/api";
+import { API_URL } from "../../config/api";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -60,10 +60,6 @@ export default function AdminLogin() {
         return;
       }
 
-      if (data?.token) {
-        setAuthToken(data.token);
-      }
-
       login(data.user);
       navigate(destination, { replace: true });
     } catch (err) {
@@ -105,7 +101,7 @@ export default function AdminLogin() {
             <input
               id="admin-email"
               type="email"
-              placeholder="admin@rideon.com"
+              placeholder="Admin email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

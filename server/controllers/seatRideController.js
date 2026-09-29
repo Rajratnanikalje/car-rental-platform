@@ -43,6 +43,13 @@ const getRides = async (req, res) => {
     const filter = { status: { $in: ["published", "full"] }, departureAt: { $gt: new Date() } };
     if (req.query.pickupPoint) filter.pickupPoint = new RegExp(`^${escapeRegex(req.query.pickupPoint.trim())}`, "i");
     if (req.query.destination) filter.destination = new RegExp(`^${escapeRegex(req.query.destination.trim())}`, "i");
+    if (req.query.date) {
+      const start = new Date(`${req.query.date}T00:00:00`);
+      if (Number.isNaN(start.getTime())) return res.status(400).json({ success: false, message: "Invalid travel date" });
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+      filter.departureAt = { $gte: start, $lt: end };
+    }
     const rides = await ScheduledRide.find(filter).populate("car", "name brand model seats image").sort({ departureAt: 1 });
     return res.json({ success: true, count: rides.length, rides });
   } catch (error) {
@@ -64,10 +71,10 @@ const getRideById = async (req, res) => {
 const createSeatBooking = async (req, res) => {
   let reservedRide = null;
   try {
-    const { seats, pickupLocation, destination, paymentMethod = "cash" } = req.body;
+    const { seats, pickupLocation, destination, passengerName, passengerPhone, paymentMethod = "cash" } = req.body;
     const requestedSeats = Number(seats);
     if (!isValidId(req.params.rideId)) return res.status(404).json({ success: false, message: "Ride not found" });
-    if (!Number.isInteger(requestedSeats) || requestedSeats < 1 || !pickupLocation?.trim() || !destination?.trim() || !["cash", "online"].includes(paymentMethod)) {
+    if (!Number.isInteger(requestedSeats) || requestedSeats < 1 || !pickupLocation?.trim() || !destination?.trim() || !passengerName?.trim() || !passengerPhone?.trim() || !["cash", "online"].includes(paymentMethod)) {
       return res.status(400).json({ success: false, message: "Please provide valid seat booking details" });
     }
     reservedRide = await ScheduledRide.findOneAndUpdate(
@@ -87,6 +94,8 @@ const createSeatBooking = async (req, res) => {
       seats: requestedSeats,
       pickupLocation: pickupLocation.trim(),
       destination: destination.trim(),
+      passengerName: passengerName.trim(),
+      passengerPhone: passengerPhone.trim(),
       fare: requestedSeats * reservedRide.pricePerSeat,
       paymentMethod,
       checkInOtpHash: await bcrypt.hash(otp, 10),

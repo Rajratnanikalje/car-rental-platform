@@ -82,6 +82,7 @@ const carSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    serviceAreas: [{ type: mongoose.Schema.Types.ObjectId, ref: "ServiceArea", index: true }],
 
     image: {
       type: String,
@@ -109,12 +110,31 @@ const carSchema = new mongoose.Schema(
       enum: ["company", "partner"],
       default: "company",
     },
+    dataOrigin: { type: String, enum: ["admin", "driver", "demo", "legacy"], default: "legacy", index: true },
 
     driver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Driver",
       default: null,
     },
+    bookingLockToken: { type: String, default: null, select: false },
+    bookingLockUntil: { type: Date, default: null, select: false, index: true },
+    verificationStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected", "suspended"],
+      default: "approved",
+      index: true,
+    },
+    verificationReviewNote: { type: String, trim: true, default: "", maxlength: 1000 },
+    registrationNumber: { type: String, trim: true, uppercase: true, default: "" },
+    documents: [{
+      documentType: { type: String, trim: true },
+      documentUrl: { type: String, trim: true },
+      expiryDate: { type: Date, default: null },
+      status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+      verifiedAt: { type: Date, default: null },
+      reviewNote: { type: String, default: "", trim: true, maxlength: 1000 },
+    }],
   },
   {
     timestamps: true,
